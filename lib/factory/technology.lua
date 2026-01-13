@@ -1,4 +1,4 @@
-local base_prototypes = require("__factorissimo-3-space-factory__/lib/base-prototypes")
+local base_prototypes = require("__FactorissimoLib__/lib/base-prototypes")
 
 local M = {}
 

@@ -1,15 +1,15 @@
-local F = "__factorissimo-3-space-factory__"
+local F = "__FactorissimoLib__"
 if false then
     example_factory_1 = {
-    type = "factory",                                                                        // !
-    name = "factory-1",                                                                      // !
-    tier = 1,                                                                                // !
+    type = "factory",
+    name = "factory-1",
+    tier = 1,
     conditioned = false,
-    outside_size = 8,                                                                        // !
-    inside_size = 30,                                                                        // !
-    max_health = 4000,                                                                       // !
-    color = {r = 0.8, g = 0.7, b = 0.55},                                                    // !
-    graphics = {                                                                             // !
+    outside_size = 8,
+    inside_size = 30,
+    max_health = 4000,
+    color = {r = 0.8, g = 0.7, b = 0.55},
+    graphics = {
         icon = F .. "/graphics/icon/factory-1.png",
         icon_size = 64,
         pictures = {
@@ -33,7 +33,6 @@ if false then
                 }
             },
         },
-        
     },
     recipe = {
         energy_required = 30,

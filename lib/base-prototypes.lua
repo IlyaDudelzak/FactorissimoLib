@@ -1,4 +1,4 @@
-local F = "__factorissimo-3-space-factory__"
+local F = "__FactorissimoLib__"
 
 local tile_trigger_effects = require("__base__.prototypes.tile.tile-trigger-effects")
 local sounds = require("__base__.prototypes.entity.sounds")
@@ -8,7 +8,7 @@ local concrete_vehicle_friction_modifier = data.raw["tile"]["concrete"].vehicle_
 local concrete_driving_sound = table.deepcopy(data.raw["tile"]["concrete"].driving_sound)
 local concrete_tile_build_sounds = table.deepcopy(data.raw["tile"]["concrete"].build_sound)
 
-local prototype_functions = require("__factorissimo-3-space-factory__/lib/prototype-functions")
+local prototype_functions = require("__FactorissimoLib__/lib/prototype-functions")
 
 _G.base_prototypes = {
     entity = {
