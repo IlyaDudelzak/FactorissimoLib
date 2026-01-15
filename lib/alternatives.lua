@@ -1,6 +1,10 @@
 local M = {}
 
--- 1. Condition registry
+-- [[ 1. Реестры ]]
+M.patches = M.patches or {}
+M.allowed_categories = M.allowed_categories or {} -- Таблица разрешенных категорий
+
+-- [[ 2. Условия и Слияние (как прежде) ]]
 M.conditions = {
     ["always"] = function() return true end,
     ["mod"] = function(name) return mods and mods[name] ~= nil end,
@@ -9,17 +13,12 @@ M.conditions = {
     end
 }
 
--- 2. Internal function to check conditions
 local function check_condition(candidate)
     local func = M.conditions[candidate.type]
-    if not func then 
-        log("Warning: Unknown condition type: " .. tostring(candidate.type))
-        return false 
-    end
+    if not func then return false end
     return func(table.unpack(candidate.args))
 end
 
--- 3. Recursive table merge (for applying patches)
 local function deep_merge(target, source)
     for k, v in pairs(source) do
         if type(v) == "table" and type(target[k]) == "table" then
@@ -32,24 +31,31 @@ local function deep_merge(target, source)
 end
 
 ----------------------------------------------------------------
--- GLOBAL REGISTRIES
+-- УПРАВЛЕНИЕ КАТЕГОРИЯМИ
 ----------------------------------------------------------------
-M.overrides = {} -- For full object replacement
-M.patches = {}   -- For partial parameter modification
 
--- Register an override (full replacement)
-M.add_override = function(category, data, cond_type, cond_args, priority)
-    M.overrides[category] = M.overrides[category] or {}
-    table.insert(M.overrides[category], {
-        data = data,
-        type = cond_type or "always",
-        args = type(cond_args) == "table" and cond_args or {cond_args},
-        priority = priority or 50
-    })
+-- Регистрация новой категории. Вызывай это в lib.lua при создании группы фабрик.
+M.register_category = function(category)
+    M.allowed_categories[category] = true
+    log("Registered alternatives category: " .. category)
 end
 
--- Register a patch (partial modification)
+-- Проверка, разрешена ли категория
+local function validate_category(category)
+    if not M.allowed_categories[category] then
+        error("Attempted to use unregistered alternatives category: " .. tostring(category) .. 
+              ". Make sure to call register_category first!")
+    end
+end
+
+----------------------------------------------------------------
+-- ПАТЧИ
+----------------------------------------------------------------
+
 M.add_patch = function(category, patch_data, cond_type, cond_args, priority)
+    -- Проверка: можно ли патчить эту категорию?
+    validate_category(category)
+
     M.patches[category] = M.patches[category] or {}
     table.insert(M.patches[category], {
         data = patch_data,
@@ -59,45 +65,21 @@ M.add_patch = function(category, patch_data, cond_type, cond_args, priority)
     })
 end
 
-----------------------------------------------------------------
--- DATA PROCESSING
-----------------------------------------------------------------
-
--- Applies all suitable patches and overrides to an object
 M.apply_alternatives = function(category, base_data)
+    validate_category(category)
+    
     local result = table.deepcopy(base_data)
+    if not M.patches[category] then return result end
     
-    -- 1. First, look for overrides (pick the best one with max priority)
-    local best_override = nil
-    local max_p = -math.huge
-    
-    if M.overrides[category] then
-        for _, candidate in ipairs(M.overrides[category]) do
-            if check_condition(candidate) and candidate.priority > max_p then
-                max_p = candidate.priority
-                best_override = candidate.data
-            end
-        end
+    local active_patches = {}
+    for _, p in ipairs(M.patches[category]) do
+        if check_condition(p) then table.insert(active_patches, p) end
     end
     
-    -- If an override is found, use it as the new base
-    if best_override then
-        result = table.deepcopy(best_override)
-    end
+    table.sort(active_patches, function(a, b) return a.priority < b.priority end)
     
-    -- 2. Then apply ALL suitable patches (sorted by priority)
-    if M.patches[category] then
-        local active_patches = {}
-        for _, p in ipairs(M.patches[category]) do
-            if check_condition(p) then table.insert(active_patches, p) end
-        end
-        
-        -- Sort patches so higher priority ones are applied last
-        table.sort(active_patches, function(a, b) return a.priority < b.priority end)
-        
-        for _, p in ipairs(active_patches) do
-            result = deep_merge(result, p.data)
-        end
+    for _, p in ipairs(active_patches) do
+        result = deep_merge(result, p.data)
     end
     
     return result

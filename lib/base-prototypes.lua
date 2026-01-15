@@ -10,7 +10,7 @@ local concrete_tile_build_sounds = table.deepcopy(data.raw["tile"]["concrete"].b
 
 local prototype_functions = require("__FactorissimoLib__/lib/prototype-functions")
 
-_G.base_prototypes = {
+local base_prototypes = {
     entity = {
         ["factory"] = {
             type = "storage-tank",
@@ -241,4 +241,12 @@ _G.base_prototypes = {
     }
 }
 
-return _G.base_prototypes
+function base_prototypes.get_factory_entity_types()
+    local types = {}
+    for _, value in pairs(base_prototypes.entity) do
+        table.insert(types, value.type)
+    end
+    return types
+end
+
+return base_prototypes 
