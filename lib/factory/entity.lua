@@ -1,5 +1,5 @@
 local base_prototypes = require("__FactorissimoLib__/lib/base-prototypes")
-local Metadata = require("__FactorissimoLib__/lib/factory/metadata") -- Исправлено имя и путь
+local metadata = require("__FactorissimoLib__/lib/metadata") -- Исправлено имя и путь
 local Alternatives = require("__FactorissimoLib__/lib/alternatives")
 local util = require("util")
 
@@ -27,8 +27,8 @@ M.make_building = function(factory_data)
     prototype.max_health = fd.max_health or (math.pow(2.5, fd.tier) * 2000)
     
     -- СЕРИАЛИЗАЦИЯ (Используем уже измененные данные fd)
-    Metadata.encode_metadata(Metadata.make_metadata(fd), prototype)
-    
+    metadata.encode_metadata(fd, prototype)
+
     if fd.type == "factory" then
         prototype.minable.result = name .. "-instantiated"
         prototype.placeable_by.item = name

@@ -8,7 +8,7 @@ local concrete_vehicle_friction_modifier = data.raw["tile"]["concrete"].vehicle_
 local concrete_driving_sound = table.deepcopy(data.raw["tile"]["concrete"].driving_sound)
 local concrete_tile_build_sounds = table.deepcopy(data.raw["tile"]["concrete"].build_sound)
 
-local prototype_functions = require("__FactorissimoLib__/lib/prototype-functions")
+local utils = require("__FactorissimoLib__/lib/prototype-utils")
 
 local base_prototypes = {
     entity = {
@@ -117,17 +117,14 @@ local base_prototypes = {
                 is_input_station = true,
                 is_output_station = true,
                 hatch_definitions = {
-                    prototype_functions.platform_upper_hatch({0.5, -3.5}, 2.25, 120, -0.5, 503),
-                    prototype_functions.platform_upper_hatch({2, -3.5}, 2.25, 120, -0.5, 504),
-                    prototype_functions.platform_upper_hatch({1.25, -2.5}, 1.25, 120, -1, 505),
-                    prototype_functions.platform_lower_hatch({-1.75, 0}, 2, 120, 0, 500),
-                    prototype_functions.platform_lower_hatch({-0.5, 0.5}, 1.5, 120, 0, 501),
-                    prototype_functions.platform_lower_hatch({-2, 1}, 1, 120, 0, 502),
+                    utils.platform_hatch({0.5, -3.5}, 2.25, 120, -0.5, 503),
+                    utils.platform_hatch({2, -3.5}, 2.25, 120, -0.5, 504),
+                    utils.platform_hatch({1.25, -2.5}, 1.25, 120, -1, 505),
+                    utils.platform_hatch({-1.75, 0}, 2, 120, 0, 500),
+                    utils.platform_hatch({-0.5, 0.5}, 1.5, 120, 0, 501),
+                    utils.platform_hatch({-2, 1}, 1, 120, 0, 502),
                 },
-                giga_hatch_definitions = {
-                    prototype_functions.platform_upper_giga_hatch({0,1,2}),
-                    prototype_functions.platform_lower_giga_hatch({3,4,5}),
-                }
+                giga_hatch_definitions = {} -- Заглушка, так как функций в utils для них нет
             },
             persistent_ambient_sounds = {
                 base_ambience = {filename = "__space-age__/sound/wind/base-wind-space-platform.ogg", volume = 0.8},
@@ -227,21 +224,54 @@ local base_prototypes = {
     },
     tile = {
         type = "tile",
-        subgroup = "factorissimo-tiles",
+        -- subgroup = "factorissimo-tiles",
         name = nil,
-        collision_mask = {layers={ground_tile=true}},
+        localised_name = nil,
+        needs_correction = false,
+        collision_mask = nil,
+        variants = {
+            main = {
+                {
+                    picture = F .. "/graphics/tile/factory-floor-1.png",
+                    count = 16,
+                    size = 1
+                },
+                {
+                    picture = F .. "/graphics/tile/factory-floor-2.png",
+                    count = 4,
+                    size = 2,
+                    probability = 0.39
+                },
+                {
+                    picture = F .. "/graphics/tile/factory-floor-4.png",
+                    count = 4,
+                    size = 4,
+                    probability = 1
+                },
+            },
+            empty_transitions = true,
+        },
         layer = 50,
         walking_speed_modifier = 2,
         layer_group = "ground-artificial",
         mined_sound = sounds.deconstruct_bricks(0.8),
         driving_sound = concrete_driving_sound,
         build_sound = concrete_tile_build_sounds,
+        scorch_mark_color = {r = 0.373, g = 0.307, b = 0.243, a = 1.000},
         vehicle_friction_modifier = concrete_vehicle_friction_modifier,
+        trigger_effect = tile_trigger_effects.concrete_trigger_effect(),
         map_color = nil,
+    },
+    data_bank = {
+        type = "item-request",
+        name = nil,
+        icon = "__base__/graphics/icons/steel-chest.png",
+        icon_size = 64,
+        localised_description = {"storage-data-bank-description"},
     }
 }
 
-function base_prototypes.get_factory_entity_types()
+function base_prototypes.get_entity_types()
     local types = {}
     for _, value in pairs(base_prototypes.entity) do
         table.insert(types, value.type)
@@ -249,4 +279,4 @@ function base_prototypes.get_factory_entity_types()
     return types
 end
 
-return base_prototypes 
+return base_prototypes
