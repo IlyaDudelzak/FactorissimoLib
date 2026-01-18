@@ -7,9 +7,15 @@ M.CATEGORIES_BANK = "factorissimo-alternatives-allowed-categories-data-bank"
 
 -- Инициализация банков при первом подключении
 if not prototype_table.exists(M.PATCHES_BANK) then
+    if not data then
+        error("Alternatives patches bank does not exist in data stage.")
+    end
     prototype_table.create(M.PATCHES_BANK)
 end
 if not prototype_table.exists(M.CATEGORIES_BANK) then
+    if not data then
+        error("Alternatives categories bank does not exist in data stage.")
+    end
     prototype_table.create(M.CATEGORIES_BANK)
 end
 
@@ -38,43 +44,40 @@ local function deep_merge(target, source)
     return target
 end
 
-----------------------------------------------------------------
--- УПРАВЛЕНИЕ КАТЕГОРИЯМИ
-----------------------------------------------------------------
-
-M.register_category = function(category)
-    -- Пишем напрямую в банк данных, чтобы другие моды увидели это
-    prototype_table.add(M.CATEGORIES_BANK, category, true)
-    log("Registered alternatives category: " .. category)
-end
-
 local function validate_category(category)
     local allowed = prototype_table.get_table(M.CATEGORIES_BANK)
+    if not allowed then
+        error("No registered alternatives categories found.")
+    end
     if not allowed or not allowed[category] then
         error("Unregistered alternatives category: " .. tostring(category))
     end
 end
 
-----------------------------------------------------------------
--- ПАТЧИ
-----------------------------------------------------------------
+if data then
+    M.register_category = function(category)
+        -- Пишем напрямую в банк данных, чтобы другие моды увидели это
+        prototype_table.add(M.CATEGORIES_BANK, category, true)
+        log("Registered alternatives category: " .. category)
+    end
 
-M.add_patch = function(category, patch_data, cond_type, cond_args, priority)
-    validate_category(category)
+    M.add_patch = function(category, patch_data, cond_type, cond_args, priority)
+        validate_category(category)
 
-    -- Читаем текущий список патчей из банка
-    local all_patches = prototype_table.get_table(M.PATCHES_BANK) or {}
-    all_patches[category] = all_patches[category] or {}
+        -- Читаем текущий список патчей из банка
+        local all_patches = prototype_table.get_table(M.PATCHES_BANK) or {}
+        all_patches[category] = all_patches[category] or {}
 
-    table.insert(all_patches[category], {
-        data = patch_data,
-        type = cond_type or "always",
-        args = type(cond_args) == "table" and cond_args or {cond_args},
-        priority = priority or 50
-    })
+        table.insert(all_patches[category], {
+            data = patch_data,
+            type = cond_type or "always",
+            args = type(cond_args) == "table" and cond_args or {cond_args},
+            priority = priority or 50
+        })
 
-    -- Сохраняем обратно обновленный список
-    prototype_table.set(M.PATCHES_BANK, all_patches)
+        -- Сохраняем обратно обновленный список
+        prototype_table.set(M.PATCHES_BANK, all_patches)
+    end
 end
 
 M.apply_alternatives = function(category, base_data)

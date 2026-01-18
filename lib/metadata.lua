@@ -18,51 +18,67 @@ function M.make_metadata(factory_data)
     }
 end
 
+function has_metadata(prototype)
+    if not prototype or not prototype.localised_description then return false end
+    if prototype.localised_description[1] ~= "?" then
+        return false
+    end
+    for i = 1, #prototype.localised_description do
+        local element = prototype.localised_description[i]
+        if type(element) == "table" and element[2] == "thisismetadata" then
+            return true
+        end
+    end
+    return false
+end
+
 -- 2. Кодирование (Data Stage)
 function M.encode_metadata(metadata_table, prototype)
     if not metadata_table or not prototype then return end
 
-    -- Используем serpent.line, он доступен в Data Stage и быстрее JSON
     local data_string = serpent.line(metadata_table)
     
-    -- Сохраняем оригинальное описание (если оно есть)
-    local current_desc = prototype.localised_description or {"entity-description." .. prototype.name}
+    -- 1. Разбиваем длинную строку на части по 190 символов (с запасом)
+    local chunks = {""} -- Первый элемент "" для конкатенации в Factorio
+    table.insert(chunks, "thisismetadata") -- Маркер
+    
+    for i = 1, #data_string, 190 do
+        table.insert(chunks, data_string:sub(i, i + 189))
+    end
 
-    -- Структура: [1] - оператор, [2] - старое описание, [3] - наш маркер данных
+    -- 2. Берем старое описание (твоя защита от рекурсии)
+    local current_desc = has_metadata(prototype) and prototype.localised_description[2] 
+                         or (prototype.localised_description or {"entity-description." .. prototype.name})
+
+    -- 3. Собираем финальную структуру
     prototype.localised_description = {
-        "", 
-        current_desc, 
-        {"", "\n", "thisismetadata", data_string} 
+        "?", 
+        current_desc,
+        {"", "placeholder"}, -- Плейсхолдер для корректной работы Factorio с
+        chunks -- Теперь это таблица {"", "thisismetadata", "chunk1", "chunk2"...}
     }
 end
 
 -- 3. Декодирование (Runtime Stage)
 function M.decode_metadata(prototype)
-    -- В Runtime localised_description может быть как строкой, так и таблицей
     local l_desc = prototype.localised_description
     if not l_desc or type(l_desc) ~= "table" then return nil end
 
-    local data_string = nil
-    -- Ищем наш маркер в таблице локализации
     for i = 1, #l_desc do
         local element = l_desc[i]
+        -- Ищем наш блок по маркеру во втором индексе чанка
         if type(element) == "table" and element[2] == "thisismetadata" then
-            data_string = element[3]
-            break
+            -- Собираем все части строки, начиная с 3-го индекса
+            local full_string = ""
+            for j = 3, #element do
+                full_string = full_string .. element[j]
+            end
+            
+            local f, err = loadstring("return " .. full_string)
+            if f then return f() end
         end
     end
-
-    if not data_string then return nil end
-
-    -- Безопасно превращаем строку Serpent обратно в таблицу
-    -- loadstring превращает строку в исполняемую функцию Lua
-    local f, err = loadstring("return " .. data_string)
-    if f then
-        return f()
-    else
-        log("Factorissimo Error: Failed to decode metadata: " .. tostring(err))
-        return nil
-    end
+    return nil
 end
 
 return M

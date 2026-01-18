@@ -50,6 +50,9 @@ function M.check_factory_data(factory_data)
     if not M.allowed_factory_types[factory_data.type] then
         error("Type " .. tostring(factory_data.type) .. " is not allowed")
     end
+    if factory_data.inside_size % 2 ~= 0 then
+        error("Inside size must be an even number for factory: " .. tostring(factory_data.name))
+    end
 end
 
 ----------------------------------------------------------------
@@ -58,14 +61,16 @@ end
 
 if data then
     local TilesLib = require("__FactorissimoLib__/lib/tiles")
+    local EILib = require("__FactorissimoLib__/lib/factory/energy-interfaces")
     local FactoryPrototypes = require("__FactorissimoLib__/lib/factory/prototypes")
     local alternatives = require("__FactorissimoLib__/lib/alternatives")
+
 
     function M.add_factory(factory_data)
         M.check_factory_data(factory_data)
 
         -- Инициализируем глобальный банк, если его еще нет
-        if not data.raw["item-request"][M.GLOBAL_FACTORY_BANK] then
+        if not data.raw[prototype_table.bank_type][M.GLOBAL_FACTORY_BANK] then
             prototype_table.create(M.GLOBAL_FACTORY_BANK)
         end
 
@@ -91,6 +96,7 @@ if data then
         -- 2. Теперь создаем тайлы (после того как патчи могли изменить цвет)
         TilesLib.createColoredTile("factory-wall", factory_data.color)
         TilesLib.createColoredTile("factory-floor", factory_data.color)
+        EILib.create(factory_data.outside_size)
         local prototypes = {}
         local creators = {
             FactoryPrototypes.make_entity,
@@ -126,7 +132,7 @@ if data then
         end
 
         -- 3. Удаляем банк, чтобы не мусорить в игре
-        data.raw["item-request"][M.GLOBAL_FACTORY_BANK] = nil
+        data.raw[prototype_table.bank_type][M.GLOBAL_FACTORY_BANK] = nil
     end
 
 ----------------------------------------------------------------
