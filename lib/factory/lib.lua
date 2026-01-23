@@ -77,7 +77,6 @@ if data then
         -- Установка дефолтов
         factory_data.conditioned = factory_data.conditioned or false
         factory_data.pattern = factory_data.pattern or "00"
-        factory_data.subgroup = factory_data.subgroup or "factorissimo-factories"
         
         -- Сохраняем в локальную память текущего процесса
         M.factories[factory_data.name] = factory_data

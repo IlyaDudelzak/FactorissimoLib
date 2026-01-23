@@ -27,4 +27,29 @@ data:extend({
     group = "factorissimo-group",
     order = "c",
   },
+  {
+    type = "item-subgroup",
+    name = "factorissimo-tiles",
+    group = "factorissimo-group",
+    order = "d",
+  },
+  {
+    type = "item-subgroup",
+    name = "factorissimo-energy-interfaces",
+    group = "factorissimo-group",
+    order = "y",
+  },
+  {
+    type = "item-subgroup",
+    name = "factorissimo-connection-indicators",
+    group = "factorissimo-group",
+    order = "z",
+  },
+})
+
+data:extend({
+    {
+        type = "recipe-category",
+        name = "factory-conditioning"
+    }
 })

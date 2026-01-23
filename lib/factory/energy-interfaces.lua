@@ -31,6 +31,7 @@ if data then
         local interface = table.deepcopy(base_prototypes.energy_interface)
         
         interface.name = name
+        interface.localised_name = {"entity-name.factory-energy-interface", tostring(size)}
         interface.selection_box = make_box(size, 0.3)
         interface.collision_box = make_box(size, 0.3)
 

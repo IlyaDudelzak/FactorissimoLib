@@ -30,7 +30,6 @@ if data then
         item.icon_size = factory_data.graphics.icon_size
         item.place_result = factory_data.name
         item.order = "a[" .. factory_data.tier .. "]"
-        item.subgroup = factory_data.subgroup
 
         return item
     end
@@ -48,7 +47,6 @@ if data then
             icon_size = factory_data.graphics.icon_size
         }}
         item_inst.place_result = factory_data.name
-        item_inst.subgroup = factory_data.subgroup
 
         return item_inst
     end
