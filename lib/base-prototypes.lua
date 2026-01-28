@@ -48,7 +48,7 @@ if data then
             ["space-platform-hub"] = {
                 type = "space-platform-hub",
                 name = "space-platform-hub-building-tier-1",
-                icon = "__space-age__/graphics/icons/space-platform-hub.png",
+                icon = "__space-age__/graphics/icon/space-platform-hub.png",
                 icon_size = 64,
                 flags = {"player-creation", "not-deconstructable"},
                 subgroup = "space-platform",
@@ -162,7 +162,7 @@ if data then
             ["space-platform-hub"] = {
                 type = "space-platform-starter-pack",
                 name = nil,
-                icon = "__space-age__/graphics/icons/space-platform-starter-pack.png",
+                icon = "__space-age__/graphics/icon/space-platform-starter-pack.png",
                 subgroup = "space-rocket",
                 order = "b[space-platform-starter-pack]",
                 inventory_move_sound = item_sounds.mechanical_large_inventory_move,
