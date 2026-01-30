@@ -278,12 +278,16 @@ if data then
             map_color = nil,
         },
         data_bank = {
-            type = "sprite",
+            type = "item",
             name = nil,
-            filename = "__core__/graphics/empty.png",
-            width = 1,
-            height = 1,
+            icon = "__core__/graphics/empty.png",
+            icon_size = 1,
             localised_description = {"storage-data-bank-description"},
+            flags = {"not-stackable", "only-in-cursor"}, 
+            hidden = true,
+            subgroup = "other",
+            order = "z[factorissimo]-z[storage]",
+            stack_size = 1
         },
         energy_interface = {
             type = "electric-energy-interface",

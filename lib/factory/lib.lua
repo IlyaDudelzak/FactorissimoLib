@@ -31,7 +31,7 @@ end
 
 function M.cleanup_name(name)
     if not name then return nil end
-    return name:gsub("%-instantiated", ""):gsub("%-starter%-pack", "")
+    return name:gsub("%-instantiated", "")
 end
 
 function M.is_factory(name)
@@ -73,6 +73,7 @@ if data then
         if not data.raw[prototype_table.bank_type][M.GLOBAL_FACTORY_BANK] then
             prototype_table.create(M.GLOBAL_FACTORY_BANK)
         end
+        factory_data.mod_name = __name__
 
         -- Установка дефолтов
         factory_data.conditioned = factory_data.conditioned or false

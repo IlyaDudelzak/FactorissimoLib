@@ -7,7 +7,9 @@
   "description": "A very big library for simple creation of custom Factorissimo buildings",
   "factorio_version": "2.0",
   "dependencies": [
-    "base"
+    "base",
+    "?space-age",
+    "!factorissimo-3-space-factory"
   ],
   "quality_required": false,
   "rail_bridges_required": false,

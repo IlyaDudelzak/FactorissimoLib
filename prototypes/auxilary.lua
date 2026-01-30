@@ -36,7 +36,6 @@ if data then
             type = "simple-entity-with-force",
             name = "factory-blueprint-anchor",
             flags = {"player-creation", "placeable-off-grid"},
-            hidden = true,
             collision_box = {{-0.5, -0.5}, {0.5, 0.5}},
             selection_box = {{-0.5, -0.5}, {0.5, 0.5}},
             placeable_by = {item = "factory-connection-indicator-settings", count = 1}
@@ -131,6 +130,27 @@ if data then
             ingredients = {}, -- Ингредиенты не нужны, так как мы потребляем fluid через energy_source
             results = {{type = "item", name = "factory-air-conditioner", amount = 0}}, -- Пустой результат
             category = "factory-conditioning"
+        }
+    })
+    data:extend({
+        {
+            type = "simple-entity-with-force",
+            name = "factory-entrance-door",
+            icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
+            icon_size = 64,
+            flags = {"placeable-neutral", "player-creation", "not-repairable", "not-on-map"},
+            minable = nil,
+            max_health = 500,
+            -- Ширина 3 (от -1.4 до 1.4), высота 1 (от -0.4 до 0.4)
+            collision_box = {{-1.4, -0.4}, {1.4, 0.4}}, 
+            collision_mask = {layers = {}}, -- Чтобы игрок проходил насквозь
+            selection_box = {{-1.5, -0.5}, {1.5, 0.5}},
+            render_layer = "object",
+            picture = {
+                filename = "__core__/graphics/empty.png",
+                width = 1,
+                height = 1,
+            }
         }
     })
 end

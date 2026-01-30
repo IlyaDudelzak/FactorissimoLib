@@ -120,37 +120,31 @@ end
 
 -- Проверка входа в здание (движение вверх через вход)
 local function check_and_enter_factory(player, airborne)
-    if player.controller_type == defines.controllers.remote then return end
-
-    local walking_direction = player.walking_state.direction
-    local is_moving_north = airborne or (
-        walking_direction == defines.direction.north or
-        walking_direction == defines.direction.northeast or
-        walking_direction == defines.direction.northwest
-    )
-
-    if not is_moving_north then return end
-
+    local surface = player.physical_surface
     local pos = player.physical_position
-    local factory = find_factory_by_area {
-        surface = player.physical_surface,
-        area = (not airborne) and {
-            {pos.x - 0.2, pos.y - 0.3},
-            {pos.x + 0.2, pos.y}
-        } or nil,
-        position = airborne and pos or nil
-    }
-
-    if not factory or factory.inactive then return end
-
-    -- Дверь шире для тех, кто на джетпаке
-    local door_width = airborne and 4 or 0.9
-    local in_doorway = pos.y > factory.outside_y + 1 and math.abs(pos.x - factory.outside_x) < door_width
     
-    if in_doorway then
-        enter_factory(player, factory, player)
-        return true
+    -- Ищем дверь. Радиус 1.5 даст нам уверенный захват при ширине 3.
+    local door = surface.find_entities_filtered{
+        name = "factory-entrance-door",
+        position = pos,
+        radius = 1.5 
+    }[1]
+
+    if door then
+        local factory = remote_api.get_factory_by_entity(door)
+        if factory and not factory.inactive then
+            local dir = player.walking_state.direction
+            -- Разрешаем вход, если идем вверх или летим
+            if airborne or dir == defines.direction.north 
+               or dir == defines.direction.northeast 
+               or dir == defines.direction.northwest then
+               
+                teleport_safely(player, factory.inside_surface, {factory.inside_door_x, factory.inside_door_y}, player)
+                return true
+            end
+        end
     end
+    return false
 end
 
 -- Основной цикл проверки перемещений
