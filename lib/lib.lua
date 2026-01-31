@@ -1,14 +1,15 @@
-_G.factorissimo = factorissimo or {}
+_G.factorissimo = factorissimo or {["factory"] = {}}
 _G.F = "__FactorissimoLib__"
 
-require "table"
-require "string"
-require "defines"
-require "colors"
-require "factory.lib"
-require "metadata"
-require "alternatives"
-require "common"
+require "lib.table"
+require "lib.string"
+require "lib.defines"
+require "lib.colors"
+require "lib.factory.lib"
+require "lib.metadata"
+require "lib.alternatives"
+require "lib.common"
+require "lib.prototype-table"
 
 if data and data.raw and not data.raw.item["iron-plate"] then
     factorissimo.stage = "settings"

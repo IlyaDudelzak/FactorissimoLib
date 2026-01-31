@@ -1,23 +1,5 @@
 local M = {}
 
--- 1. Подготовка чистой таблицы (Whitelist подход)
-function M.make_metadata(factory_data)
-    if not factory_data then return nil end
-    return {
-        tier = factory_data.tier,
-        inside_size = factory_data.inside_size,
-        outside_size = factory_data.outside_size,
-        conditioned = factory_data.conditioned,
-        pattern = factory_data.pattern,
-        connections_per_side = factory_data.connections_per_side,
-        color = factory_data.color and {
-            r = factory_data.color.r,
-            g = factory_data.color.g,
-            b = factory_data.color.b
-        } or nil
-    }
-end
-
 function has_metadata(prototype)
     if not prototype or not prototype.localised_description then return false end
     if prototype.localised_description[1] ~= "?" then

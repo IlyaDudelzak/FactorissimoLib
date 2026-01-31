@@ -41,6 +41,13 @@ if data then
         return prototype
     end
 
+    function M.create_if_not_exists(name)
+        if not M.exists(name) then
+            return M.create(name)
+        end
+        return data.raw[M.bank_type][name .. M.bank_suffix]
+    end
+
     function M.set(name, data_table)
         local prototype = data.raw[M.bank_type][name .. M.bank_suffix]
         if not prototype then error("Prototype bank " .. name .. " not found.") end
@@ -54,8 +61,11 @@ if data then
         local prototype = data.raw[M.bank_type][name .. M.bank_suffix]
         if not prototype then error("Prototype bank " .. name .. " not found.") end
         
-        local data_table = metadata.decode_metadata(prototype) or {}
-        
+        local data_table = metadata.decode_metadata(prototype)
+        if not data_table then
+            error("Failed to decode metadata for item-request prototype: " .. name)
+        end
+
         if value ~= nil then
             data_table[key_or_value] = value
         else

@@ -102,8 +102,8 @@ end
 local factory_floors = {}
 for _, planet in pairs(data.raw.planet) do
     -- Пропускаем уже созданные этажи и системные поверхности
-    if planet.hidden and planet.name ~= "nauvis" then goto continue end
-    
+    if planet.name:match("%-factory%-floor$") then goto continue end
+
     local factory_floor = table.deepcopy(planet)
     local orig_name = planet.name
     
@@ -118,7 +118,7 @@ for _, planet in pairs(data.raw.planet) do
     -- Настройки орбиты и видимости
     factory_floor.distance = planet.distance + 0.1
     factory_floor.draw_orbit = false
-    factory_floor.hidden = true -- Игрок не может прилететь сюда на корабле
+    factory_floor.hidden = orig_name == "nauvis" and false or true -- Игрок не может прилететь сюда на корабле
     factory_floor.hidden_in_factoriopedia = true
     
     -- Свойства поверхности (важно для модов)
@@ -131,6 +131,26 @@ for _, planet in pairs(data.raw.planet) do
     factory_floor.icons = generate_factory_floor_planet_icons(planet)
     
     update_render_params(planet, factory_floor)
+
+factory_floor.map_gen_settings = {
+        terrain_segmentation = 1,
+        water = 0,
+        autoplace_controls = {},
+        autoplace_settings = {
+            ["decorative"] = {treat_missing_as_default = false, settings = {}},
+            ["entity"] = {treat_missing_as_default = false, settings = {}},
+            -- Мы просто говорим игре НЕ использовать стандартные настройки (false),
+            -- но не перечисляем тайл out-of-map здесь.
+            ["tile"] = {treat_missing_as_default = false, settings = {}}
+        },
+        property_expression_names = {
+            -- elevation ниже 0 при отсутствии других настроек заполнит мир пустотой
+            elevation = "-10", 
+            moisture = "0",
+            temperature = "15"
+        }
+    }
+
     table.insert(factory_floors, factory_floor)
 
     ::continue::

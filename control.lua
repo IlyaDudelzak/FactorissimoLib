@@ -2,6 +2,8 @@ require "lib.lib"
 
 remote_api = require("script.factory-api")
 
+require "newscript.includer"
+
 -- require "script.factory-buildings"
 -- require "script.connections.connections"
 -- require "script.roboport"
@@ -19,3 +21,5 @@ remote_api = require("script.factory-api")
 -- require "script.factory-lifecycle"
 -- require "script.factory-manager"
 -- require "script.factory-map"
+
+factorissimo.finalize_events()

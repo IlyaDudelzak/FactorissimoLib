@@ -25,19 +25,34 @@ end
 
 factorissimo.finalize_events = function()
     local i = 0
-    for event, functions in pairs(events) do
+    for event_key, functions in pairs(events) do
         local f = one_function_from_many(functions)
-        if tonumber(event) and not defines.events[event] then
-            script.on_nth_tick(tonumber(event), f)
-        elseif event == "ON INIT EVENT" then
+        local numeric_event = tonumber(event_key)
+        
+        if event_key == "ON INIT EVENT" then
             script.on_init(f)
             script.on_configuration_changed(f)
+            
+        elseif numeric_event then
+            local is_standard = false
+            for name, id in pairs(defines.events) do
+                if id == numeric_event then
+                    is_standard = true
+                    break
+                end
+            end
+
+            if is_standard then
+                script.on_event(numeric_event, f)
+            else
+                script.on_nth_tick(numeric_event, f)
+            end
         else
-            script.on_event(tonumber(event) or event, f)
+            script.on_event(event_key, f)
         end
         i = i + 1
     end
-    log("Finalized " .. i .. " events for " .. script.mod_name)
+    log("Finalized " .. i .. " event groups for " .. script.mod_name)
 end
 
 -- Delayed functions logic

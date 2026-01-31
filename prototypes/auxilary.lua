@@ -153,4 +153,39 @@ if data then
             }
         }
     })
+    local factory_radar = table.deepcopy(data.raw["radar"]["radar"])
+    factory_radar.name = "factorissimo-factory-radar"
+    factory_radar.hidden_in_factoriopedia = true
+    factory_radar.hidden = true -- Скрыть из списков выбора
+
+    -- Убираем физическое присутствие и возможность нажать
+    factory_radar.flags = {
+        "placeable-off-grid", 
+        "not-on-map", 
+        "not-blueprintable", 
+        "not-deconstructable", 
+        "not-repairable"
+    }
+    factory_radar.collision_box = nil
+    factory_radar.selection_box = nil
+    factory_radar.selectable_in_game = false
+
+    -- Делаем его абсолютно прозрачным (пустая картинка)
+    local empty_sprite = {
+        filename = "__core__/graphics/empty.png",
+        priority = "extra-high",
+        width = 1,
+        height = 1,
+        frame_count = 1,
+        direction_count = 1,
+    }
+    factory_radar.pictures = {
+        layers = { empty_sprite }
+    }
+
+    factory_radar.energy_source = { type = "void" }
+    factory_radar.max_distance_of_sector_revealed = 8
+    factory_radar.max_distance_of_nearby_sector_revealed = 8
+
+    data:extend({ factory_radar })
 end

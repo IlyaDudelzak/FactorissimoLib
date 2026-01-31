@@ -1,5 +1,4 @@
 local font = require("lib.font-data")
-local bit32 = require("bit32")
 local M = {}
 
 function M.make_space_line(number)
@@ -19,7 +18,7 @@ end
 local function byte_to_line(b)
     b = reverse_byte(b)
     local l = ""
-    for i = 7, 0, -1 do l = l .. ((b & (bit32.lshift(1, i))) ~= 0 and "+" or " ") end
+    for i = 7, 0, -1 do l = l .. ((bit32.band(b, bit32.lshift(1, i))) ~= 0 and "+" or " ") end
     return l
 end
 
@@ -40,7 +39,7 @@ function M.generate_single_line(text)
 end
 
 function M.generate(text)
-    text = M.split(text, "\n")
+    text = string.split(text, "\n")
     local max_length = 0
     local pattern = {}
     for _, linetext in ipairs(text) do
