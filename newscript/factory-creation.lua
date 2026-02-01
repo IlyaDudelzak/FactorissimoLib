@@ -5,12 +5,21 @@ local utility = require("utility")
 
 local M = {}
 
-local function get_or_create_factory_surface(name)
+local function get_or_create_factory_surface(name, force)
     local planet = game.planets[name]
     if not planet then return nil end
-    local surface = planet.surface or planet.create_surface()
-    surface.daytime = 0.5
-    surface.freeze_daytime = true
+    local surface = planet.surface
+    if not surface then
+        surface = planet.create_surface()
+        surface.set_chunk_generated_status({0, 0}, defines.chunk_generated_status.entities)
+        surface.set_chunk_generated_status({-1, 0}, defines.chunk_generated_status.entities)
+        surface.set_chunk_generated_status({0, -1}, defines.chunk_generated_status.entities)
+        surface.set_chunk_generated_status({-1, -1}, defines.chunk_generated_status.entities)
+        surface.daytime = 0.5
+        surface.freeze_daytime = true
+        force.set_surface_hidden(surface, false)
+        force.set_cease_fire(force, true)
+    end
     return surface
 end
 
@@ -42,12 +51,10 @@ function M.create_factory(building)
         target_surface = current_surface
     else
         local target_name = current_surface.name .. "-factory-floor"
-        target_surface = get_or_create_factory_surface(target_name)
+        target_surface = get_or_create_factory_surface(target_name, building.force)
     end
     
     if not target_surface then return nil end
-    
-    building.force.set_surface_hidden(target_surface, false)
 
     storage.surface_counters = storage.surface_counters or {}
     local n = storage.surface_counters[target_surface.index] or 0

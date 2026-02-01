@@ -282,7 +282,7 @@ if data then
             name = nil,
             icon = "__core__/graphics/empty.png",
             icon_size = 1,
-            localised_description = {"storage-data-bank-description"},
+            localised_description = {"factorissimo.storage-data-bank-description"},
             flags = {"not-stackable", "only-in-cursor"}, 
             hidden = true,
             subgroup = "other",

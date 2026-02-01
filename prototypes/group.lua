@@ -45,6 +45,12 @@ data:extend({
     group = "factorissimo-group",
     order = "z",
   },
+  {
+    type = "item-subgroup",
+    name = "factorissimo-factory-floors",
+    group = "factorissimo-group",
+    order = "za",
+  },
 })
 
 data:extend({
