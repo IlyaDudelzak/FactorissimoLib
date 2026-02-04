@@ -71,6 +71,14 @@ function M.add_tile_mosaic(factory_data, tiles)
     end
 end
 
+local function max_connections_count(factory_data)
+    local max_inside = (math.floor((factory_data.inside_size / 2 - 1) / 2)) * 2
+    local max_outside = (math.floor((factory_data.outside_size - 1) / 2)) * 2
+    return math.min(max_inside, max_outside)
+end
+
+
+
 function M.add_walls(factory_data, tiles)
     local size = factory_data.inside_size
     -- extent — это радиус пола. Для размера 16, extent = 8 (пол от -8 до 7).
@@ -116,16 +124,33 @@ function M.make_tiles(factory_data)
     return tiles
 end
 
-function M.generate_layout(factory_data)
+-- layout_generators["factory-1"] = {
+--     name = "factory-1",
+--     tier = 1,
+--     inside_size = 30,
+--     outside_size = 10,
+--     inside_door_x = 0,
+--     inside_door_y = 16,
+--     outside_door_x = 0,
+--     outside_door_y = 4,
+--     connections = {
+--         w1 = make_connection("w1", -4.5, -2.5, -15.5, -9.5, west),
+--         e1 = make_connection("e1", 4.5, -2.5, 15.5, -9.5, east),
+--     },
+--     rectangles = {
+--         {x1 = -16, x2 = 16, y1 = -16, y2 = 16, tile = "factory-wall-1"},
+--         {x1 = -15, x2 = 15, y1 = -15, y2 = 15, tile = "factory-floor"},
+--     },
+-- }
+
+function M.generate_layout(factory_data, quality)
     local pattern = pattern_gen.generate(factory_data.pattern)
     local layout = {}
+    layout.connections = M.make_connections(factory_data, quality)  
     layout.tiles = M.make_tiles(factory_data)
+    layout.quality = quality
     return layout
 end
 
-if data then
-    
-else
-end
 
 return M

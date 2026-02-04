@@ -34,41 +34,48 @@ function M.is_factory(name)
     return M.factories[clean_name] ~= nil
 end
 
-function M.check_factory_data(factory_data)
-    if not factory_data then error("Factory data is nil") end
-    local fields = {"type", "name", "tier", "outside_size", "inside_size", "color", "graphics"}
-    for _, field in ipairs(fields) do
-        if factory_data[field] == nil then
-            error("Field '" .. field .. "' is missing in factory: " .. tostring(factory_data.name))
-        end
-    end
-    if not M.allowed_factory_types[factory_data.type] then
-        error("Type " .. tostring(factory_data.type) .. " is not allowed")
-    end
-    if factory_data.inside_size % 2 ~= 0 then
-        error("Inside size must be an even number for factory: " .. tostring(factory_data.name))
-    end
-    if factory_data.outside_size % 2 ~= 0 then
-        error("Outside size must be an even number for factory: " .. tostring(factory_data.name))
-    end
-    if factory_data.inside_size < factory_data.outside_size then
-        error("Inside size must be larger or equal than outside size for factory: " .. tostring(factory_data.name))
-    end
-end
 
 if data then
     local TilesLib = require("__FactorissimoLib__/lib/tiles")
+    local DoorLib = require("__FactorissimoLib__/lib/factory/door")
     local EILib = require("__FactorissimoLib__/lib/factory/energy-interfaces")
     local FactoryPrototypes = require("__FactorissimoLib__/lib/factory/prototypes")
     local alternatives = require("__FactorissimoLib__/lib/alternatives")
+    local connections = require("__FactorissimoLib__/lib/factory/connections")
 
     prototype_table.create_if_not_exists(M.GLOBAL_FACTORY_BANK)
+
+    function M.check_factory_data(factory_data)
+        if not factory_data then error("Factory data is nil") end
+        local fields = {"type", "name", "tier", "outside_size", "inside_size", "color", "graphics", "door"}
+        for _, field in ipairs(fields) do
+            if factory_data[field] == nil then
+                error("Field '" .. field .. "' is missing in factory: " .. tostring(factory_data.name))
+            end
+        end
+        if not M.allowed_factory_types[factory_data.type] then
+            error("Type " .. tostring(factory_data.type) .. " is not allowed")
+        end
+        if factory_data.inside_size % 2 ~= 0 then
+            error("Inside size must be an even number for factory: " .. tostring(factory_data.name))
+        end
+        if factory_data.outside_size % 2 ~= 0 then
+            error("Outside size must be an even number for factory: " .. tostring(factory_data.name))
+        end
+        if factory_data.inside_size < factory_data.outside_size then
+            error("Inside size must be larger or equal than outside size for factory: " .. tostring(factory_data.name))
+        end
+        DoorLib.check_door(factory_data)
+        connections.check_connections(factory_data)
+    end
 
     function M.add_factory(factory_data)
         M.check_factory_data(factory_data)
         factory_data.mod_name = __name__
         factory_data.conditioned = factory_data.conditioned or false
         factory_data.pattern = factory_data.pattern or "00"
+        factory_data.outside_door_x = factory_data.outside_door_x or 0
+        factory_data.outside_door_y = factory_data.outside_door_y or factory_data.outside_size / 2
         M.factories[factory_data.name] = factory_data
         prototype_table.add(M.GLOBAL_FACTORY_BANK, factory_data.name, factory_data)
         alternatives.register_category("factory-data-" .. factory_data.name)
@@ -78,6 +85,7 @@ if data then
         factory_data = alternatives.apply_alternatives("factory-data-" .. factory_data.name, factory_data)
         TilesLib.createColoredTile("factory-wall", factory_data.color)
         TilesLib.createColoredTile("factory-floor", factory_data.color)
+        DoorLib.create_door(factory_data)
         EILib.create(factory_data.outside_size)
         local prototypes = {}
         local creators = {

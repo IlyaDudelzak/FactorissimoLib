@@ -153,6 +153,62 @@ if data then
             }
         }
     })
+    data:extend({
+        {
+            type = "simple-entity-with-force",
+            name = "factory-horizontal-exit-door",
+            icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
+            icon_size = 64,
+            flags = {
+                "placeable-neutral", 
+                "player-creation", 
+                "not-repairable", 
+                "not-on-map", 
+                "not-selectable-in-game" -- Добавь, если не хочешь, чтобы её можно было "выбрать" мышкой
+            },
+            minable = nil,
+            max_health = 500,
+            -- Ширина 4 (от -1.9 до 1.9), высота 2 (от -0.9 до 0.9)
+            -- Оставляем зазор 0.1, чтобы дверь не "застревала" в соседних тайлах
+            collision_box = {{-1.9, -0.9}, {1.9, 0.9}}, 
+            collision_mask = {layers = {}}, -- Игрок проходит насквозь
+            selection_box = {{-2.0, -1.0}, {2.0, 1.0}},
+            render_layer = "object",
+            picture = {
+                filename = "__core__/graphics/empty.png",
+                width = 1,
+                height = 1,
+            }
+        }
+    })
+    data:extend({
+        {
+            type = "simple-entity-with-force",
+            name = "factory-vertical-exit-door",
+            icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
+            icon_size = 64,
+            flags = {
+                "placeable-neutral", 
+                "player-creation", 
+                "not-repairable", 
+                "not-on-map", 
+                "not-selectable-in-game" -- Добавь, если не хочешь, чтобы её можно было "выбрать" мышкой
+            },
+            minable = nil,
+            max_health = 500,
+            -- Ширина 4 (от -1.9 до 1.9), высота 2 (от -0.9 до 0.9)
+            -- Оставляем зазор 0.1, чтобы дверь не "застревала" в соседних тайлах
+            collision_box = {{-0.9, -1.9}, {0.9, 1.9}}, 
+            collision_mask = {layers = {}}, -- Игрок проходит насквозь
+            selection_box = {{-2.0, -1.0}, {2.0, 1.0}},
+            render_layer = "object",
+            picture = {
+                filename = "__core__/graphics/empty.png",
+                width = 1,
+                height = 1,
+            }
+        }
+    })
     local factory_radar = table.deepcopy(data.raw["radar"]["radar"])
     factory_radar.name = "factorissimo-factory-radar"
     factory_radar.hidden_in_factoriopedia = true

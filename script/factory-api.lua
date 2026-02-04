@@ -1,8 +1,16 @@
--- script/factory-api.lua
+local FactoryLib = require("lib.factory.lib")
+local layout_generator = require("lib.factory.layout-generator")
 
 local factory_api = {}
 
 local BUILDING_TYPE = "storage-tank" -- Убедись, что твои здания в прототипах имеют этот тип!
+
+function factory_api.create_layout(name, quality) 
+    if not name or not quality then return end
+    local fd = FactoryLib.get_factory_data(name)
+    if not fd then return end
+    return layout_generator.create_layout(fd, quality)
+end
 
 -- Исправленные функции работы с памятью мода
 factory_api.get_storage = function(path)

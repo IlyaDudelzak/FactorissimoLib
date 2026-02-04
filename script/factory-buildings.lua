@@ -191,14 +191,20 @@ end)
 
 local function update_recursion_techs(force)
     if settings.global["Factorissimo2-hide-recursion"] and settings.global["Factorissimo2-hide-recursion"].value then
-        force.technologies["factory-recursion-t1"].enabled = false
-        force.technologies["factory-recursion-t2"].enabled = false
+        if force.technologies["factory-recursion-t2"] then
+            force.technologies["factory-recursion-t2"].enabled = false
+        end
     elseif settings.global["Factorissimo2-hide-recursion-2"] and settings.global["Factorissimo2-hide-recursion-2"].value then
-        force.technologies["factory-recursion-t1"].enabled = true
-        force.technologies["factory-recursion-t2"].enabled = false
+        if force.technologies["factory-recursion-t2"] then
+            force.technologies["factory-recursion-t2"].enabled = false
+        end
     else
-        force.technologies["factory-recursion-t1"].enabled = true
-        force.technologies["factory-recursion-t2"].enabled = true
+        if force.technologies["factory-recursion-t1"] then
+            force.technologies["factory-recursion-t1"].enabled = true
+        end
+        if force.technologies["factory-recursion-t2"] then
+            force.technologies["factory-recursion-t2"].enabled = true
+        end
     end
 end
 
@@ -970,3 +976,27 @@ factorissimo.on_event(defines.events.on_forces_merging, function(event)
         end
     end
 end)
+
+-- Fallback definitions for development
+if not game then
+    game = {
+        forces = {},
+        get_surface = function() return {} end,
+    }
+end
+
+if not settings then
+    settings = {
+        global = {
+            ["Factorissimo2-hide-recursion"] = {value = false},
+            ["Factorissimo2-hide-recursion-2"] = {value = false},
+        }
+    }
+end
+
+if not remote then
+    remote = {
+        interfaces = {},
+        call = function() end,
+    }
+end

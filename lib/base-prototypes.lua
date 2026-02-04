@@ -359,6 +359,42 @@ if data then
             maximum_wire_distance = 1,
             supply_area_distance = 63,
             connection_points = {empty_circuit_wire_points(), empty_circuit_wire_points(), empty_circuit_wire_points(), empty_circuit_wire_points()},
+        },
+        horizontal_entrance_door = {
+            type = "simple-entity-with-force",
+            name = nil,
+            icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
+            icon_size = 64,
+            flags = {"placeable-neutral", "player-creation", "not-repairable", "not-on-map"},
+            minable = nil,
+            max_health = 500,
+            collision_box = {{nil, -0.4}, {nil, 0.4}}, 
+            collision_mask = {layers = {}},
+            selection_box = {{nil, -0.5}, {nil, 0.5}},
+            render_layer = "object",
+            picture = {
+                filename = "__core__/graphics/empty.png",
+                width = 1,
+                height = 1,
+            }
+        },
+        vertical_entrance_door = {
+            type = "simple-entity-with-force",
+            name = nil,
+            icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
+            icon_size = 64,
+            flags = {"placeable-neutral", "player-creation", "not-repairable", "not-on-map"},
+            minable = nil,
+            max_health = 500,
+            collision_box = {{-0.4, nil}, {0.4, nil}},
+            collision_mask = {layers = {}}, -- Чтобы игрок проходил насквозь
+            selection_box = {{-0.5, nil}, {0.5, nil}},
+            render_layer = "object",
+            picture = {
+                filename = "__core__/graphics/empty.png",
+                width = 1,
+                height = 1,
+            }
         }
     }
 
