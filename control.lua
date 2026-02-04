@@ -4,8 +4,8 @@ require "lib.lib"
 
 remote_api = require("script.factory-api")
 
-require "script.factory-buildings"
 require "script.connections.connections"
+require "script.factory-buildings"
 require "script.roboport"
 require "script.blueprint"
 require "script.camera"

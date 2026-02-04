@@ -1,4 +1,4 @@
-if not mods["power-grid-comb"] then return end
+if not script.active_mods["power-grid-comb"] then return end
 
 local function array_combine(a, b)
     local result = {}

@@ -123,22 +123,45 @@ local function check_and_enter_factory(player, airborne)
     local surface = player.physical_surface
     local pos = player.physical_position
     
-    -- Ищем дверь. Радиус 1.5 даст нам уверенный захват при ширине 3.
-    local door = surface.find_entities_filtered{
-        name = "factory-entrance-door",
+    -- Ищем любую сущность двери рядом с игроком
+    -- Используем поиск по области, так как двери могут быть широкими
+    local doors = surface.find_entities_filtered{
+        type = "simple-entity-with-force", -- или используй prefix-поиск
         position = pos,
         radius = 1.5 
-    }[1]
+    }
+
+    local door = nil
+    for _, d in pairs(doors) do
+        if d.name:find("factory%-entrance%-door") then
+            door = d
+            break
+        end
+    end
 
     if door then
         local factory = remote_api.get_factory_by_entity(door)
         if factory and not factory.inactive then
+            local layout = factory.layout
+            local side = layout.door.side
             local dir = player.walking_state.direction
-            -- Разрешаем вход, если идем вверх или летим
-            if airborne or dir == defines.direction.north 
-               or dir == defines.direction.northeast 
-               or dir == defines.direction.northwest then
-               
+            
+            -- Проверка: идет ли игрок ВНУТРИ здания через дверь
+            local can_enter = false
+            
+            if airborne then
+                can_enter = true -- Летающим юнитам можно всё
+            elseif side == "s" and (dir == defines.direction.north or dir == defines.direction.northeast or dir == defines.direction.northwest) then
+                can_enter = true -- Входим снизу, идем вверх
+            elseif side == "n" and (dir == defines.direction.south or dir == defines.direction.southeast or dir == defines.direction.southwest) then
+                can_enter = true -- Входим сверху, идем вниз
+            elseif side == "e" and (dir == defines.direction.west or dir == defines.direction.northwest or dir == defines.direction.southwest) then
+                can_enter = true -- Входим справа, идем влево
+            elseif side == "w" and (dir == defines.direction.east or dir == defines.direction.northeast or dir == defines.direction.southeast) then
+                can_enter = true -- Входим слева, идем вправо
+            end
+
+            if can_enter then
                 teleport_safely(player, factory.inside_surface, {factory.inside_door_x, factory.inside_door_y}, player)
                 return true
             end

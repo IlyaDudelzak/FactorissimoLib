@@ -42,6 +42,7 @@ if data then
     local FactoryPrototypes = require("__FactorissimoLib__/lib/factory/prototypes")
     local alternatives = require("__FactorissimoLib__/lib/alternatives")
     local connections = require("__FactorissimoLib__/lib/factory/connections")
+    local colors = require("__FactorissimoLib__/lib/colors")
 
     prototype_table.create_if_not_exists(M.GLOBAL_FACTORY_BANK)
 
@@ -76,6 +77,7 @@ if data then
         factory_data.pattern = factory_data.pattern or "00"
         factory_data.outside_door_x = factory_data.outside_door_x or 0
         factory_data.outside_door_y = factory_data.outside_door_y or factory_data.outside_size / 2
+        factory_data.color = colors.color_normalize(factory_data.color)
         M.factories[factory_data.name] = factory_data
         prototype_table.add(M.GLOBAL_FACTORY_BANK, factory_data.name, factory_data)
         alternatives.register_category("factory-data-" .. factory_data.name)

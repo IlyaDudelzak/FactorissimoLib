@@ -1,5 +1,7 @@
 local M = {}
 
+local connections = require("lib.factory.connections")
+
 local pattern_gen = require("lib.pattern-gen")
 
 function M.make_space_line(number)
@@ -50,23 +52,20 @@ function M.add_tile_mosaic(factory_data, tiles)
         math.floor(factory_data.color.r * 255) .. "-" .. 
         math.floor(factory_data.color.g * 255) .. "-" .. 
         math.floor(factory_data.color.b * 255)
-    
+
+    local floor_name = "factory-floor"
+
     local i = #tiles
     
     -- Итерируемся строго по размеру массива паттерна
     for y = 1, h do
         local line = pattern[y]
         for x = 1, w do
-            -- Проверяем символ
-            if string.sub(line, x, x) == "+" then
-                i = i + 1
-                -- Мировые координаты = индекс в массиве + оффсет
-                -- (x-1), потому что индексы Lua начинаются с 1, а координаты с 0
-                tiles[i] = {
-                    name = tile_name, 
-                    position = {x - 1 + x_offset, y - 1 + y_offset}
-                }
-            end
+            i = i + 1
+            tiles[i] = {
+                name = string.sub(line, x, x) == "+" and tile_name or floor_name, 
+                position = {x - 1 + x_offset, y - 1 + y_offset}
+            }
         end
     end
 end
@@ -143,12 +142,67 @@ end
 --     },
 -- }
 
+local side_offsets = {
+    n = {x = 0,  y = -1,  side_x = 1,  side_y = 0},
+    s = {x = 0,  y = 1,   side_x = 1,  side_y = 0},
+    e = {x = 1,  y = 0,   side_x = 0,  side_y = 1},
+    w = {x = -1, y = 0,   side_x = 0,  side_y = 1}
+}
+
 function M.generate_layout(factory_data, quality)
-    local pattern = pattern_gen.generate(factory_data.pattern)
     local layout = {}
-    layout.connections = M.make_connections(factory_data, quality)  
-    layout.tiles = M.make_tiles(factory_data)
+    
+    -- 1. Базовая информация
+    layout.name = factory_data.name
+    layout.tier = factory_data.tier or 1
+    layout.inside_size = factory_data.inside_size
+    layout.outside_size = factory_data.outside_size
     layout.quality = quality
+
+    -- 2. Логика Двери (основа для всех координат)
+    local door_cfg = factory_data.door or {side = "s"}
+    local side = door_cfg.side
+    local off = side_offsets[side]
+
+    -- Снаружи: на краю коллизии (outside_size / 2)
+    layout.outside_door_x = (layout.outside_size / 2) * off.x
+    layout.outside_door_y = (layout.outside_size / 2) * off.y
+    
+    -- Внутри: чуть дальше края пола (+1 тайл за стену), чтобы игрок выходил "из стены"
+    layout.inside_door_x = (layout.inside_size / 2 + 1) * off.x
+    layout.inside_door_y = (layout.inside_size / 2 + 1) * off.y
+
+    -- 3. Энергия и Оверлей
+    -- Внутренний столб: ставим его на 1 тайл вглубь от двери и на 4 тайла вбок
+    -- Чтобы не мешал прямому проходу
+    layout.inside_energy_x = layout.inside_door_x - (off.x * 2) + (off.side_x * -4)
+    layout.inside_energy_y = layout.inside_door_y - (off.y * 2) + (off.side_y * -4)
+    
+    -- Внешний приемник энергии (обычно в центре или чуть смещен)
+    layout.outside_energy_x = 0
+    layout.outside_energy_y = 0
+    
+    -- Тип входа энергии зависит от тира (8, 16, 64 и т.д.)
+    -- Если в factory_data нет спец. указания, считаем по формуле или дефолт
+    local power_multiplier = (layout.tier == 1) and 8 or (layout.tier * 20) -- пример логики
+    layout.outside_energy_receiver_type = factory_data.outside_energy_receiver_type or ("factory-power-input-" .. power_multiplier)
+
+    -- Позиция оверлея (значок предмета над зданием)
+    layout.overlay_x = 0
+    layout.overlay_y = layout.outside_door_y - (off.y * 1) -- Чуть выше/ниже двери
+
+    -- 4. Сундуки (Логистика)
+    layout.outside_requester_chest = "factory-requester-chest-" .. layout.name
+    layout.outside_ejector_chest = "factory-eject-chest-" .. layout.name
+
+    -- 5. Тайлы и Соединения
+    layout.connections = connections.generate_connections(factory_data, quality)
+    layout.connection_tile = factory_data.connection_tile or "factory-connection-tile"
+
+    layout.tiles = M.make_tiles(factory_data)
+    layout.rectangles = factory_data.rectangles or {}
+    layout.mosaics = factory_data.mosaics or {}
+
     return layout
 end
 

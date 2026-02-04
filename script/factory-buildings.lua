@@ -150,11 +150,16 @@ local function set_factory_active_or_inactive(factory)
     end
 end
 
+require "lights"
+require "greenhouse"
+require "roboport"
+require "overlay"
+
 local DEFAULT_FACTORY_UPGRADES = {
     {"factorissimo", "build_lights_upgrade"},
     {"factorissimo", "build_greenhouse_upgrade"},
     {"factorissimo", "build_display_upgrade"},
-    {"factorissimo", "build_roboport_upgrade"}
+    -- {"factorissimo", "build_roboport_upgrade"}
 }
 
 local function build_factory_upgrades(factory)
@@ -162,6 +167,9 @@ local function build_factory_upgrades(factory)
         assert(#upgrade == 2)
         local mod, upgrade_function = upgrade[1], upgrade[2]
         if mod == "factorissimo" then
+            if not factorissimo[upgrade_function] then
+                error("Missing factory upgrade function: " .. upgrade_function)
+            end
             factorissimo[upgrade_function](factory)
         else
             remote.call(mod, upgrade_function, factory)
@@ -311,58 +319,78 @@ local function create_factory_position(layout, building)
     local surface_name = which_void_surface_should_this_new_factory_be_placed_on(layout, building)
     local surface = game.get_surface(surface_name)
 
+    -- 1. Подготовка поверхности
     if surface then
-        -- A bit of extra safety to ensure grass does not generate.
         local mgs = surface.map_gen_settings
         mgs.width = 2
         mgs.height = 2
         surface.map_gen_settings = mgs
     else
-        if remote.interfaces["RSO"] then -- RSO compatibility
-            pcall(remote.call, "RSO", "ignoreSurface", surface_name)
-        end
-
         local planet = game.planets[surface_name]
         if planet then
             surface = planet.surface or planet.create_surface()
-        end
-
-        if not surface then
+        else
             surface = game.create_surface(surface_name, {width = 2, height = 2})
-
-            -- 💡 ИСПРАВЛЕНИЕ ЛОКАЛИЗАЦИИ:
-            -- Используем счетчик для локализации ТОЛЬКО если
-            -- имя поверхности было сгенерировано этим счетчиком (начинается с числа).
-            if tonumber(surface_name:match("^(%d+)%-factory%-floor$")) then
-                local surface_number = surface_name:match("^(%d+)%-factory%-floor$")
+            local surface_number = surface_name:match("^(%d+)%-factory%-floor$")
+            if surface_number then
                 surface.localised_name = {"space-location-name.factory-floor", surface_number}
             end
         end
-
-        if surface_name == "space-factory-floor" then
-            surface.localised_name = {"space-location-name.space-factory-floor"}
-            surface.set_property("gravity", 0)
-            surface.set_property("pressure", 0)
-            surface.set_property("magnetic-field", 0)
-        end
-
         surface.daytime = 0.5
         surface.freeze_daytime = true
     end
 
-    local n = find_first_unused_position(surface) - 1
-    local FACTORISSIMO_CHUNK_SPACING = 16
-    local cx = FACTORISSIMO_CHUNK_SPACING * (n % 8)
-    local cy = FACTORISSIMO_CHUNK_SPACING * math.floor(n / 8)
-    -- To make void chnks show up on the map, you need to tell them they've finished generating.
-    for xx = -2, 2 do
-        for yy = -2, 2 do
+    -- 2. Расчет КВАДРАТНОЙ СПИРАЛИ
+    -- n - индекс текущей фабрики (1, 2, 3...)
+    local n = find_first_unused_position(surface)
+    
+    local x, y = 0, 0
+    if n > 1 then
+        -- Сдвигаем n на -1 для удобства расчетов (первая в 0,0)
+        local i = n - 1
+        -- Математика квадратной спирали (Step-by-step)
+        local root = math.floor(math.sqrt(i))
+        local side = math.floor((root + 1) / 2)
+        local max_in_square = (2 * side + 1) ^ 2
+        local inner_side = 2 * side
+        
+        if i <= (2 * side - 1) ^ 2 + inner_side then -- Правая сторона
+            x = side; y = i - ((2 * side - 1) ^ 2 + side - 1) - side
+        elseif i <= (2 * side - 1) ^ 2 + 2 * inner_side then -- Верхняя сторона
+            x = side - (i - ((2 * side - 1) ^ 2 + inner_side)); y = side
+        elseif i <= (2 * side - 1) ^ 2 + 3 * inner_side then -- Левая сторона
+            x = -side; y = side - (i - ((2 * side - 1) ^ 2 + 2 * inner_side))
+        else -- Нижняя сторона
+            x = -side + (i - ((2 * side - 1) ^ 2 + 3 * inner_side)); y = -side
+        end
+    end
+
+    -- 3. Наложение сетки (16 чанков между центрами)
+    local FACTORISSIMO_CHUNK_SPACING = 16 
+    local cx = x * FACTORISSIMO_CHUNK_SPACING
+    local cy = y * FACTORISSIMO_CHUNK_SPACING
+
+    -- 4. Генерация чанков (запас под большие фабрики 400x400)
+    -- 400 тайлов / 32 = 12.5 чанков. Радиус 8 покрывает 16 чанков.
+    local gen_radius = 8
+    for xx = -gen_radius, gen_radius do
+        for yy = -gen_radius, gen_radius do
             surface.set_chunk_generated_status({cx + xx, cy + yy}, defines.chunk_generated_status.entities)
         end
     end
-    surface.destroy_decoratives {area = {{32 * (cx - 2), 32 * (cy - 2)}, {32 * (cx + 2), 32 * (cy + 2)}}}
+
+    -- 5. Очистка территории от травы/декораций
+    local area_limit = (FACTORISSIMO_CHUNK_SPACING * 32) / 2
+    surface.destroy_decoratives {
+        area = {
+            {32 * cx - area_limit, 32 * cy - area_limit}, 
+            {32 * cx + area_limit, 32 * cy + area_limit}
+        }
+    }
+    
     factorissimo.spawn_maraxsis_water_shaders(surface, {x = cx, y = cy})
 
+    -- 6. Инициализация объекта фабрики
     local factory = {}
     factory.inside_surface = surface
     factory.inside_x = 32 * cx
@@ -374,16 +402,15 @@ local function create_factory_position(layout, building)
     factory.outside_door_y = factory.outside_y + layout.outside_door_y
     factory.outside_surface = building.surface
 
+    -- 7. Сохранение данных
     storage.surface_factories[surface.index] = storage.surface_factories[surface.index] or {}
-    storage.surface_factories[surface.index][n + 1] = factory
+    storage.surface_factories[surface.index][n] = factory
 
-    local highest_currently_used_id = 0
+    local highest_id = 0
     for id in pairs(storage.factories) do
-        if id > highest_currently_used_id then
-            highest_currently_used_id = id
-        end
+        if id > highest_id then highest_id = id end
     end
-    factory.id = highest_currently_used_id + 1
+    factory.id = highest_id + 1
     storage.factories[factory.id] = factory
 
     return factory
@@ -447,26 +474,36 @@ local function create_factory_interior(layout, building)
     end
 
     local tiles = {}
-    for _, rect in pairs(layout.rectangles) do
-        local tile_name = tile_name_mapping[rect.tile] or rect.tile
-        add_tile_rect(tiles, tile_name, rect.x1 + factory.inside_x, rect.y1 + factory.inside_y, rect.x2 + factory.inside_x, rect.y2 + factory.inside_y)
-    end 
-    for _, mosaic in pairs(layout.mosaics) do
-        local tile_name = tile_name_mapping[mosaic.tile] or mosaic.tile
-        add_tile_mosaic(tiles, tile_name, mosaic.x1 + factory.inside_x, mosaic.y1 + factory.inside_y, mosaic.x2 + factory.inside_x, mosaic.y2 + factory.inside_y, mosaic.pattern)
+
+    -- НОВАЯ ЛОГИКА: Просто копируем заранее сгенерированные тайлы из layout.tiles
+    if layout.tiles then
+        for _, t in ipairs(layout.tiles) do
+            local tile_name = tile_name_mapping[t.name] or t.name
+            table.insert(tiles, {
+                name = tile_name,
+                position = {t.position[1] + factory.inside_x, t.position[2] + factory.inside_y}
+            })
+        end
     end
+
+    -- Добавляем тайлы соединений (портов)
     for _, cpos in pairs(layout.connections) do
         local tile_name = tile_name_mapping[layout.connection_tile] or layout.connection_tile
-        table.insert(tiles, {name = tile_name, position = {factory.inside_x + cpos.inside_x, factory.inside_y + cpos.inside_y}})
+        table.insert(tiles, {
+            name = tile_name, 
+            position = {factory.inside_x + cpos.inside_x, factory.inside_y + cpos.inside_y}
+        })
     end
+
     factory.inside_surface.set_tiles(tiles)
     add_hidden_tile_rect(factory)
 
+    -- ... (остальной код без изменений: power_pole, cerys, radar и т.д.)
     factorissimo.get_or_create_inside_power_pole(factory)
     factorissimo.spawn_cerys_entities(factory)
 
     local radar = factory.inside_surface.create_entity {
-        name = "factory-hidden-radar",
+        name = "factorissimo-factory-radar",
         position = {factory.inside_x, factory.inside_y},
         force = force,
     }
@@ -477,6 +514,8 @@ local function create_factory_interior(layout, building)
     factory.connections = {}
     factory.connection_settings = {}
     factory.connection_indicators = {}
+
+    factory.force.chart(factory.inside_surface, {{factory.inside_x - 32, factory.inside_y - 32}, {factory.inside_x + 32, factory.inside_y + 32}})
 
     return factory
 end
@@ -919,6 +958,7 @@ local clone_forbidden_prefixes = {
     "factory-hidden-construction-robot",
     "factory-hidden-construction-roboport",
     "factory-hidden-radar-",
+    "factorissimo-factory-radar-",
     "factory-heat-dummy-connector",
     "factory-inside-pump-input",
     "factory-inside-pump-output",

@@ -9,7 +9,7 @@ function factory_api.create_layout(name, quality)
     if not name or not quality then return end
     local fd = FactoryLib.get_factory_data(name)
     if not fd then return end
-    return layout_generator.create_layout(fd, quality)
+    return layout_generator.generate_layout(fd, quality)
 end
 
 -- Исправленные функции работы с памятью мода
@@ -38,8 +38,7 @@ end
 factory_api.get_factory_by_building = function(entity)
     local factory = storage.factories_by_entity[entity.unit_number]
     if factory == nil then
-        -- Небольшой дебаг, если здание не привязано
-        -- game.print("ERROR: Unbound factory building: " .. entity.name)
+        game.print("ERROR: Unbound factory building: " .. entity.name)
     end
     return factory
 end
@@ -47,7 +46,7 @@ end
 factory_api.has_layout = function(name)
     if not name then return false end
     name = name:gsub("%-instantiated", "")
-    return storage.layout_generators and storage.layout_generators[name] ~= nil
+    return FactoryLib.is_factory(name)
 end
 
 -- Делаем функцию доступной глобально, как в старом моде

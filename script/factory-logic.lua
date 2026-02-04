@@ -7,21 +7,36 @@ local has_layout = has_layout
 -- СИСТЕМА ДВЕРЕЙ (НОВОЕ) --
 
 local function create_factory_door(factory, building)
-    -- Если дверь уже существует (например, при перестроении), удаляем её
+    local layout = factory.layout
+    if not (layout and layout.door) then return end
+
+    -- Очистка старой двери
     if factory.entrance_door and factory.entrance_door.valid then
         storage.factories_by_entity[factory.entrance_door.unit_number] = nil
         factory.entrance_door.destroy()
     end
 
-    -- Рассчитываем позицию: x по центру, y на нижнем краю здания
-    local offset_y = (building.prototype.tile_height / 2) - 0.3
-    local spawn_pos = {
-        building.position.x,
-        building.position.y + offset_y
-    }
+    -- 1. Определяем имя сущности двери (собираем строку как в твоем модуле)
+    local side = layout.door.side
+    local prefix = (side == "w" or side == "e") and "vertical" or "horizontal"
+    local door_entity_name = prefix .. "-factory-entrance-door-" .. tostring(layout.door.size)
+
+    -- 2. Рассчитываем смещение в зависимости от стороны
+    local spawn_pos = {x = building.position.x, y = building.position.y}
+    local b_proto = building.prototype
     
+    if side == "n" then
+        spawn_pos.y = spawn_pos.y - (b_proto.tile_height / 2) + 0.3
+    elseif side == "s" then
+        spawn_pos.y = spawn_pos.y + (b_proto.tile_height / 2) - 0.3
+    elseif side == "w" then
+        spawn_pos.x = spawn_pos.x - (b_proto.tile_width / 2) + 0.3
+    elseif side == "e" then
+        spawn_pos.x = spawn_pos.x + (b_proto.tile_width / 2) - 0.3
+    end
+
     local door = building.surface.create_entity{
-        name = "factory-entrance-door",
+        name = door_entity_name,
         position = spawn_pos,
         force = building.force
     }
@@ -29,7 +44,6 @@ local function create_factory_door(factory, building)
     if door then
         door.destructible = false
         door.operable = false
-        -- Привязываем дверь к объекту фабрики для скрипта travel.lua
         storage.factories_by_entity[door.unit_number] = factory
         factory.entrance_door = door
     end

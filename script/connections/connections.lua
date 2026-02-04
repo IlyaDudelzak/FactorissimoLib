@@ -173,3 +173,147 @@ register_connection_type("chest", require("chest"))
 register_connection_type("fluid", require("fluid"))
 register_connection_type("circuit", require("circuit"))
 register_connection_type("heat", require("heat"))
+
+-- Define missing global variables for connection logic
+c_unlocked = c_unlocked or {}
+c_color = c_color or {}
+c_connect = c_connect or {}
+c_recheck = c_recheck or {}
+c_direction = c_direction or {}
+c_rotate = c_rotate or {}
+c_adjust = c_adjust or {}
+c_tick = c_tick or {}
+c_destroy = c_destroy or {}
+
+-- Add missing functions and definitions
+
+local get_connection_settings = function(factory, cid, ctype)
+    factory.connection_settings[cid] = factory.connection_settings[cid] or {}
+    factory.connection_settings[cid][ctype] = factory.connection_settings[cid][ctype] or {}
+    return factory.connection_settings[cid][ctype]
+end
+factorissimo.get_connection_settings = get_connection_settings
+
+local function set_connection_indicator(factory, cid, ctype, setting, dir)
+    local old_indicator = factory.connection_indicators[cid]
+    if old_indicator and old_indicator.valid then old_indicator.destroy() end
+    local cpos = factory.layout.connections[cid]
+    local new_indicator = factory.inside_surface.create_entity {
+        name = "factory-connection-indicator-" .. ctype .. "-" .. setting,
+        force = factory.force,
+        position = {x = factory.inside_x + cpos.inside_x + cpos.indicator_dx, y = factory.inside_y + cpos.inside_y + cpos.indicator_dy},
+        create_build_effect_smoke = false,
+        direction = dir,
+        quality = factory.quality
+    }
+    new_indicator.destructible = false
+    factory.connection_indicators[cid] = new_indicator
+end
+
+local function delete_connection_indicator(factory, cid, ctype)
+    local old_indicator = factory.connection_indicators[cid]
+    if old_indicator and old_indicator.valid then old_indicator.destroy() end
+end
+
+local function register_connection(factory, cid, ctype, conn, settings)
+    conn._id = cid
+    conn._type = ctype
+    conn._factory = factory
+    conn._settings = settings
+    conn._valid = true
+    factory.connections[cid] = conn
+    if conn.do_tick_update then add_to_queue(conn) end
+    local setting, dir = c_direction[ctype](conn)
+    set_connection_indicator(factory, cid, ctype, setting, dir)
+end
+
+local function init_connection(factory, cid, cpos)
+    if factory.inactive then return end
+    if not factory.outside_surface.valid then return end
+    if not factory.inside_surface.valid then return end
+
+    local outside_entities = factory.outside_surface.find_entities_filtered {
+        position = {cpos.outside_x + factory.outside_x, cpos.outside_y + factory.outside_y},
+        force = factory.force
+    }
+    if outside_entities == nil or not outside_entities[1] then return end
+
+    local inside_entities = factory.inside_surface.find_entities_filtered {
+        position = {cpos.inside_x + factory.inside_x, cpos.inside_y + factory.inside_y},
+        force = factory.force
+    }
+    if inside_entities == nil or not inside_entities[1] then return end
+
+    for _, outside_entity in pairs(outside_entities) do
+        local outside_connection_type = type_map[outside_entity.type] or type_map[outside_entity.name]
+        if outside_connection_type == nil then
+            goto continue
+        end
+
+        for _, inside_entity in pairs(inside_entities) do
+            local inside_connection_type = type_map[inside_entity.type] or type_map[inside_entity.name]
+            if outside_connection_type ~= inside_connection_type then
+                goto continue_2
+            end
+
+            if not c_unlocked[outside_connection_type](factory.force) then
+                factorissimo.create_flying_text {position = inside_entity.position, text = {"research-required"}}
+                factorissimo.create_flying_text {position = outside_entity.position, text = {"research-required"}}
+            end
+
+            local settings = get_connection_settings(factory, cid, outside_connection_type)
+            local new_connection = c_connect[outside_connection_type](factory, cid, cpos, outside_entity, inside_entity, settings)
+            if new_connection then
+                factory.inside_surface.play_sound {path = "entity-close/assembling-machine-3", position = inside_entity.position}
+                factory.outside_surface.play_sound {path = "entity-close/assembling-machine-3", position = outside_entity.position}
+                register_connection(factory, cid, outside_connection_type, new_connection, settings)
+                return
+            end
+            ::continue_2::
+        end
+        ::continue::
+    end
+end
+factorissimo.init_connection = init_connection
+
+local function destroy_connection(conn)
+    if conn and conn._valid then
+        c_destroy[conn._type](conn)
+        conn._valid = false
+        conn._factory.connections[conn._id] = nil
+        delete_connection_indicator(conn._factory, conn._id, conn._type)
+    end
+end
+factorissimo.destroy_connection = destroy_connection
+
+local function recheck_factory_connections(factory, outside_area, inside_area)
+    if not factory.built then return end
+    for cid, cpos in pairs(factory.layout.connections) do
+        if outside_area and not in_area(cpos.outside_x + factory.outside_x, cpos.outside_y + factory.outside_y, outside_area) then
+            goto continue
+        end
+        if inside_area and not in_area(cpos.inside_x + factory.inside_x, cpos.inside_y + factory.inside_y, inside_area) then
+            goto continue
+        end
+
+        local conn = factory.connections[cid]
+        if conn then
+            if c_logic[conn._type].recheck(conn) then
+                -- Connection is valid, no action needed
+            else
+                factorissimo.destroy_connection(conn)
+                init_connection(factory, cid, cpos)
+            end
+        else
+            init_connection(factory, cid, cpos)
+        end
+
+        ::continue::
+    end
+end
+
+factorissimo.recheck_factory_connections = recheck_factory_connections
+
+local function in_area(x, y, area)
+    return x >= area.left_top.x and x <= area.right_bottom.x and y >= area.left_top.y and y <= area.right_bottom.y
+end

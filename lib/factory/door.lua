@@ -33,11 +33,11 @@ if data then
             return door_name
         end
 
-        local door = util.deepcopy(base_prototypes.horizontal_entrance_door)
+        local door = table.deepcopy(base_prototypes.horizontal_entrance_door)
         door.name = door_name
         local ext_half_width = fd.door.size / 2 + 0.5
         door.collision_box = {{-ext_half_width, -0.5}, {ext_half_width, 0.5}}
-        
+        door.selection_box = {{-ext_half_width, -0.5}, {ext_half_width, 0.5}}
         data:extend({door})
         return door.name
     end
@@ -49,12 +49,12 @@ if data then
             return door_name
         end
 
-        local door = util.deepcopy(base_prototypes.vertical_entrance_door)
+        local door = table.deepcopy(base_prototypes.vertical_entrance_door)
         door.name = door_name
 
         local ext_half_height = fd.door.size / 2 + 0.5
         door.collision_box = {{-0.5, -ext_half_height}, {0.5, ext_half_height}}
-        
+        door.selection_box = {{-0.5, -ext_half_height}, {0.5, ext_half_height}}
         data:extend({door})
         return door.name
     end

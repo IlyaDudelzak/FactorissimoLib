@@ -56,7 +56,7 @@ end
 local cloneForbiddenPrefixes = {
     "factory-1-", "factory-2-", "factory-3-", "space-factory-1-",
     "factory-power-input-", "factory-connection-indicator-", "factory-power-pole",
-    "factory-overlay-controller", "factory-port-marker", "factory-hidden-radar-"
+    "factory-overlay-controller", "factory-port-marker", "factory-hidden-radar-", "factorissimo-factory-radar-"
 }
 
 function FactoryManager.isEntityCloneForbidden(name)

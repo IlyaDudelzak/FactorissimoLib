@@ -12,9 +12,9 @@ if data then
         return { layers = { ground_tile = true } }
     end
 
-    function M.createColoredTile(type, color)
+    function M.createColoredTile(type, color, forced_name)
         color = colors.color_normalize(color)
-        local name = type .. "-color-" .. math.floor(color.r * 255) .. "-" .. math.floor(color.g * 255) .. "-" .. math.floor(color.b * 255)
+        local name = forced_name or (type .. "-color-" .. math.floor(color.r * 255) .. "-" .. math.floor(color.g * 255) .. "-" .. math.floor(color.b * 255))
         if data.raw.tile[name] then return data.raw.tile[name] end
         local deepcopy = (util and util.deepcopy) or (table and table.deepcopy)
         if not deepcopy then error("No deepcopy function found") end
@@ -27,8 +27,10 @@ if data then
         data:extend({tile})
         return name
     end
-    
-    M.createColoredTile("factory-floor", {r=0.55, g=0.55, b=0.55})
+
+    M.createColoredTile("factory-floor", {r=0.55, g=0.55, b=0.55}, "factory-floor")
+    M.createColoredTile("factory-floor", {r=0.55, g=0.55, b=0.55}, "factory-entrance-floor")
+    M.createColoredTile("factory-floor", {r=0.55, g=0.55, b=0.55}, "factory-connection-tile")
 end
 
 return M

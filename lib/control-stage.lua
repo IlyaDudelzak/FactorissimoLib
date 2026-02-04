@@ -4,6 +4,17 @@ local random = math.random
 
 require "events"
 
+-- Import all compatibility scripts
+require("compat.cerys")
+require("compat.efficient-smelting")
+require("compat.factorio-maps")
+require("compat.gregtorio")
+require("compat.maraxsis")
+require("compat.picker-dollies")
+require("compat.power-grid-comb")
+require("compat.resource-spawner-overhaul")
+require("compat.space-exploration")
+
 ---Draws a red error icon at the entity's position.
 ---@param entity LuaEntity
 ---@param sprite string

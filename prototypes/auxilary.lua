@@ -135,27 +135,6 @@ if data then
     data:extend({
         {
             type = "simple-entity-with-force",
-            name = "factory-entrance-door",
-            icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
-            icon_size = 64,
-            flags = {"placeable-neutral", "player-creation", "not-repairable", "not-on-map"},
-            minable = nil,
-            max_health = 500,
-            -- Ширина 3 (от -1.4 до 1.4), высота 1 (от -0.4 до 0.4)
-            collision_box = {{-1.4, -0.4}, {1.4, 0.4}}, 
-            collision_mask = {layers = {}}, -- Чтобы игрок проходил насквозь
-            selection_box = {{-1.5, -0.5}, {1.5, 0.5}},
-            render_layer = "object",
-            picture = {
-                filename = "__core__/graphics/empty.png",
-                width = 1,
-                height = 1,
-            }
-        }
-    })
-    data:extend({
-        {
-            type = "simple-entity-with-force",
             name = "factory-horizontal-exit-door",
             icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
             icon_size = 64,
@@ -244,4 +223,82 @@ if data then
     factory_radar.max_distance_of_nearby_sector_revealed = 8
 
     data:extend({ factory_radar })
+
+    data:extend {{
+        type = "item",
+        name = "factory-circuit-connector",
+        icon = F .. "/graphics/icon/factory-circuit-connector.png",
+        icon_size = 64,
+        flags = {},
+        subgroup = "factorissimo-parts",
+        order = "c-b",
+        place_result = "factory-circuit-connector",
+        stack_size = 50,
+    }}
+
+    data:extend {{
+        type = "electric-pole",
+        name = "factory-circuit-connector",
+        icon = F .. "/graphics/icon/factory-circuit-connector.png",
+        icon_size = 64,
+        flags = {"placeable-neutral", "player-creation"},
+        minable = {mining_time = 0.5, result = "factory-circuit-connector"},
+        max_health = 50,
+        corpse = "small-remnants",
+        supply_area_distance = 0,
+        draw_copper_wires = false,
+        collision_box = {{-0.35, -0.35}, {0.35, 0.35}},
+        selection_box = {{-0.5, -0.5}, {0.5, 0.5}},
+        auto_connect_up_to_n_wires = 0,
+        pictures = {
+            layers = {
+                {
+                    direction_count = 1,
+                    filename = F .. "/graphics/entity/factory-circuit-connector.png",
+                    width = 64,
+                    height = 64,
+                    scale = 0.51,
+                },
+                {
+                    direction_count = 1,
+                    filename = F .. "/graphics/entity/factory-circuit-connector-sh.png",
+                    width = 85,
+                    height = 85,
+                    scale = 0.51,
+                    draw_as_shadow = true,
+                },
+            }
+        },
+        connection_points = {{
+            shadow = {
+                red = {0.75, 0.5625},
+                green = {0.21875, 0.5625}
+            },
+            wire = {
+                red = {0.28125, 0.15625},
+                green = {-0.21875, 0.15625}
+            }
+        }},
+        maximum_wire_distance = 14,
+    }}
+
+    data:extend {
+        -- Utilities
+        {
+            type = "recipe",
+            name = "factory-circuit-connector",
+            enabled = false,
+            energy_required = 1,
+            ingredients = {
+                {type = "item", name = "electronic-circuit", amount = 2},
+                {type = "item", name = "copper-cable",       amount = 5}
+            },
+            results = {{type = "item", name = "factory-circuit-connector", amount = 1}},
+        }
+    }
+
+    -- small vanilla change to allow factories to be crafted at the start of the game
+    if data.raw["recipe-category"]["metallurgy-or-assembling"] then
+        table.insert(data.raw["assembling-machine"]["assembling-machine-1"].crafting_categories or {}, "metallurgy-or-assembling")
+    end
 end

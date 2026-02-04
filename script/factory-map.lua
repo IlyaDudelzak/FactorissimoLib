@@ -39,7 +39,7 @@ function FactoryMap.createFactoryInterior(layout, building)
     
     -- Создание радара для обзора внутри
     local radar = surface.create_entity {
-        name = "factory-hidden-radar",
+        name = "factorissimo-factory-radar",
         position = {offX, offY},
         force = factory.force,
     }
