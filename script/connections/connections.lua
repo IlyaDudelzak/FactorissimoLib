@@ -288,15 +288,16 @@ factorissimo.destroy_connection = destroy_connection
 
 local function recheck_factory_connections(factory, outside_area, inside_area)
     if not factory.built then return end
-    for cid, cpos in pairs(factory.layout.connections) do
+    local connections = factory.connections
+    for _, cpos in ipairs(factory.layout.connections) do
+        local cid = cpos.id
         if outside_area and not in_area(cpos.outside_x + factory.outside_x, cpos.outside_y + factory.outside_y, outside_area) then
             goto continue
         end
         if inside_area and not in_area(cpos.inside_x + factory.inside_x, cpos.inside_y + factory.inside_y, inside_area) then
             goto continue
         end
-
-        local conn = factory.connections[cid]
+        local conn = connections[cid]
         if conn then
             if c_logic[conn._type].recheck(conn) then
                 -- Connection is valid, no action needed

@@ -35,6 +35,8 @@ if data then
 
         local door = table.deepcopy(base_prototypes.horizontal_entrance_door)
         door.name = door_name
+        door.localised_name = {"factorissimo.horizontal_factory_entrance_door", tostring(fd.door.size)}
+
         local ext_half_width = fd.door.size / 2 + 0.5
         door.collision_box = {{-ext_half_width, -0.5}, {ext_half_width, 0.5}}
         door.selection_box = {{-ext_half_width, -0.5}, {ext_half_width, 0.5}}
@@ -51,6 +53,7 @@ if data then
 
         local door = table.deepcopy(base_prototypes.vertical_entrance_door)
         door.name = door_name
+        door.localised_name = {"factorissimo.vertical_factory_entrance_door", tostring(fd.door.size)}
 
         local ext_half_height = fd.door.size / 2 + 0.5
         door.collision_box = {{-0.5, -ext_half_height}, {0.5, ext_half_height}}

@@ -45,6 +45,10 @@ local function draw_planet_icon_on_inside_power_pole(factory)
     rendering.draw_sprite(sprite_data)
 end
 
+local function add_pos(a, b)
+    return {x = a.x + b.x, y = a.y + b.y}
+end
+
 local function get_or_create_inside_power_pole(factory)
     if factory._inside_power_pole and factory._inside_power_pole.valid then
         return factory._inside_power_pole
@@ -53,7 +57,7 @@ local function get_or_create_inside_power_pole(factory)
     local layout = factory.layout
     local power_pole = factory.inside_surface.create_entity {
         name = "factory-power-pole",
-        position = {factory.inside_x + layout.inside_energy_x, factory.inside_y + layout.inside_energy_y},
+        position = add_pos(layout.inside_energy_pos, factory.inside_pos),
         force = factory.force,
         quality = factory.quality
     }

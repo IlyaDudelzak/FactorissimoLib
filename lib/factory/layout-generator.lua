@@ -70,49 +70,104 @@ function M.add_tile_mosaic(factory_data, tiles)
     end
 end
 
-local function max_connections_count(factory_data)
-    local max_inside = (math.floor((factory_data.inside_size / 2 - 1) / 2)) * 2
-    local max_outside = (math.floor((factory_data.outside_size - 1) / 2)) * 2
-    return math.min(max_inside, max_outside)
+local function rotate_pos(x, y, side)
+    if side == "s" then return {x = x, y = y} end
+    if side == "n" then return {x = -x - 1, y = -y - 1} end
+    if side == "e" then return {x = y, y = -x - 1} end
+    if side == "w" then return {x = -y - 1, y = x} end
+    return {x = x, y = y}
 end
 
+function M.add_entrance(factory_data, tiles)
+    if not factory_data.door then return end
+    
+    local side = factory_data.door.side
+    local extent = factory_data.inside_size / 2
+    local i = #tiles
+    
+    local wall_tile = "factory-wall-color-" .. 
+        math.floor(factory_data.color.r * 255) .. "-" .. 
+        math.floor(factory_data.color.g * 255) .. "-" .. 
+        math.floor(factory_data.color.b * 255)
+    local entrance_tile = "factory-entrance-floor"
 
+    -- Базовые координаты для ЮЖНОЙ стороны (S):
+    -- Стенка находится на y = extent
+    
+    -- 1. Прямоугольник входа 4x3 (Центрирован: x от -2 до 1)
+    -- Один ряд (dy=0) накладывается на линию стены, два ряда (dy=1,2) выходят наружу
+    for dy = 0, 2 do
+        for dx = -2, 1 do
+            local p = rotate_pos(dx, extent + dy, side)
+            i = i + 1
+            tiles[i] = {name = entrance_tile, position = {p.x, p.y}}
+        end
+    end
+
+    -- 2. Три тайла стены в каждую сторону от прямоугольника (на линии стены)
+    -- Слева: -5, -4, -3. Справа: 2, 3, 4.
+    local wall_offsets = {-5, -4, -3, 2, 3, 4}
+    for _, dx in ipairs(wall_offsets) do
+        local p = rotate_pos(dx, extent, side)
+        i = i + 1
+        tiles[i] = {name = wall_tile, position = {p.x, p.y}}
+    end
+
+    -- 3. Два тайла стены "вниз" (наружу), прилегая к прямоугольнику
+    -- Слева от входа (x=-3) и справа (x=2) на глубину dy=1, dy=2
+    for dy = 1, 2 do
+        -- Левое "ушко"
+        local p1 = rotate_pos(-3, extent + dy, side)
+        i = i + 1
+        tiles[i] = {name = wall_tile, position = {p1.x, p1.y}}
+        
+        -- Правое "ушко"
+        local p2 = rotate_pos(2, extent + dy, side)
+        i = i + 1
+        tiles[i] = {name = wall_tile, position = {p2.x, p2.y}}
+    end
+end
 
 function M.add_walls(factory_data, tiles)
     local size = factory_data.inside_size
-    -- extent — это радиус пола. Для размера 16, extent = 8 (пол от -8 до 7).
     local extent = size / 2
-    
-    -- Динамическое имя плитки стены на основе цвета
     local tile_name = "factory-wall-color-" .. 
         math.floor(factory_data.color.r * 255) .. "-" .. 
         math.floor(factory_data.color.g * 255) .. "-" .. 
         math.floor(factory_data.color.b * 255)
+    local connection_tile_name = "factory-connection-tile"
     
     local i = #tiles
+    local door_side = factory_data.door and factory_data.door.side
 
     -- 1. Горизонтальные линии (Верх и Низ)
-    -- Проходим от -8-1 (-9) до 8. Итого 18 плиток в ширину.
     for x = -extent - 1, extent do
-        -- Верхняя граница (Y = -9)
-        i = i + 1
-        tiles[i] = {name = tile_name, position = {x, -extent - 1}}
+        -- Верх (North)
+        if not (door_side == "n" and x >= -5 and x <= 4) then
+            i = i + 1
+            tiles[i] = {name = tile_name, position = {x, -extent - 1}}
+        end
         
-        -- Нижняя граница (Y = 8)
-        i = i + 1
-        tiles[i] = {name = tile_name, position = {x, extent}}
+        -- Низ (South)
+        if not (door_side == "s" and x >= -5 and x <= 4) then
+            i = i + 1
+            tiles[i] = {name = tile_name, position = {x, extent}}
+        end
     end
 
     -- 2. Вертикальные линии (Лево и Право)
-    -- Углы уже заняты горизонтальными линиями, поэтому идем от -8 до 7.
     for y = -extent, extent - 1 do
-        -- Левая граница (X = -9)
-        i = i + 1
-        tiles[i] = {name = tile_name, position = {-extent - 1, y}}
+        -- Лево (West)
+        if not (door_side == "w" and y >= -5 and y <= 4) then
+            i = i + 1
+            tiles[i] = {name = tile_name, position = {-extent - 1, y}}
+        end
         
-        -- Правая граница (X = 8)
-        i = i + 1
-        tiles[i] = {name = tile_name, position = {extent, y}}
+        -- Право (East)
+        if not (door_side == "e" and y >= -5 and y <= 4) then
+            i = i + 1
+            tiles[i] = {name = tile_name, position = {extent, y}}
+        end
     end
 end
 
@@ -120,6 +175,7 @@ function M.make_tiles(factory_data)
     local tiles = {}
     M.add_tile_mosaic(factory_data, tiles)
     M.add_walls(factory_data, tiles)
+    M.add_entrance(factory_data, tiles) -- Добавляем вход в конце
     return tiles
 end
 
@@ -158,48 +214,68 @@ function M.generate_layout(factory_data, quality)
     layout.inside_size = factory_data.inside_size
     layout.outside_size = factory_data.outside_size
     layout.quality = quality
+    layout.factory_data = factory_data
 
-    -- 2. Логика Двери (основа для всех координат)
-    local door_cfg = factory_data.door or {side = "s"}
-    local side = door_cfg.side
+    -- 2. Логика Двери
+    local door = factory_data.door
+    local side = door.side
     local off = side_offsets[side]
+    layout.door = door
 
-    -- Снаружи: на краю коллизии (outside_size / 2)
     layout.outside_door_x = (layout.outside_size / 2) * off.x
     layout.outside_door_y = (layout.outside_size / 2) * off.y
-    
-    -- Внутри: чуть дальше края пола (+1 тайл за стену), чтобы игрок выходил "из стены"
     layout.inside_door_x = (layout.inside_size / 2 + 1) * off.x
     layout.inside_door_y = (layout.inside_size / 2 + 1) * off.y
 
-    -- 3. Энергия и Оверлей
-    -- Внутренний столб: ставим его на 1 тайл вглубь от двери и на 4 тайла вбок
-    -- Чтобы не мешал прямому проходу
-    layout.inside_energy_x = layout.inside_door_x - (off.x * 2) + (off.side_x * -4)
-    layout.inside_energy_y = layout.inside_door_y - (off.y * 2) + (off.side_y * -4)
+    -- 3. Энергия (ВОЗВРАЩАЕМ inside_energy_pos)
+    -- Расчет позиции столба: 4 тайла вбок от двери и 1 тайл внутрь
+    layout.inside_energy_pos = {
+        x = layout.inside_door_x + (off.side_x * -4) - (off.x * 1),
+        y = layout.inside_door_y + (off.side_y * -4) - (off.y * 1)
+    }
     
-    -- Внешний приемник энергии (обычно в центре или чуть смещен)
-    layout.outside_energy_x = 0
-    layout.outside_energy_y = 0
-    
-    -- Тип входа энергии зависит от тира (8, 16, 64 и т.д.)
-    -- Если в factory_data нет спец. указания, считаем по формуле или дефолт
-    local power_multiplier = (layout.tier == 1) and 8 or (layout.tier * 20) -- пример логики
-    layout.outside_energy_receiver_type = factory_data.outside_energy_receiver_type or ("factory-power-input-" .. power_multiplier)
+    layout.outside_energy_receiver_type = factory_data.outside_energy_receiver_type or ("factory-power-input-" .. layout.outside_size)
 
-    -- Позиция оверлея (значок предмета над зданием)
-    layout.overlay_x = 0
-    layout.overlay_y = layout.outside_door_y - (off.y * 1) -- Чуть выше/ниже двери
+    -- 4. Оверлеи
+    if factory_data.overlays then
+        layout.overlays = table.deepcopy(factory_data.overlays)
+    else
+        layout.overlays = {
+            outside_x = 0,
+            outside_y = -1,
+            outside_w = layout.outside_size,
+            outside_h = layout.outside_size - 2,
+            inside_pos = { -- Используем таблицу для консистентности
+                x = layout.inside_door_x + (off.side_x * -3.5) - (off.x * 2),
+                y = layout.inside_door_y + (off.side_y * -3.5) - (off.y * 2)
+            }
+        }
+    end
 
-    -- 4. Сундуки (Логистика)
-    layout.outside_requester_chest = "factory-requester-chest-" .. layout.name
-    layout.outside_ejector_chest = "factory-eject-chest-" .. layout.name
+    -- 5. Cerys (Радиационные башни)
+    layout.cerys_radiative_towers = {}
+    if factory_data.cerys_radiative_towers then
+        for _, pos in ipairs(factory_data.cerys_radiative_towers) do
+            -- Вращаем старые координаты (которые обычно для Юга) под текущую дверь
+            local rotated = rotate_pos(pos[1], pos[2], side)
+            table.insert(layout.cerys_radiative_towers, {x = rotated.x, y = rotated.y})
+        end
+    else
+        -- Дефолт: башни по углам внутри
+        local dist = (layout.inside_size / 2) - 5
+        layout.cerys_radiative_towers = {
+            {x = -dist, y = -dist}, {x = dist, y = -dist},
+            {x = -dist, y = dist}, {x = dist, y = dist}
+        }
+    end
 
-    -- 5. Тайлы и Соединения
+    -- 6. Остальное
+    layout.outside_requester_chest = factory_data.outside_requester_chest or ("factory-requester-chest-" .. layout.name)
+    layout.outside_ejector_chest = factory_data.outside_ejector_chest or ("factory-eject-chest-" .. layout.name)
+
     layout.connections = connections.generate_connections(factory_data, quality)
-    layout.connection_tile = factory_data.connection_tile or "factory-connection-tile"
-
-    layout.tiles = M.make_tiles(factory_data)
+    layout.connection_tile = "factory-connection-tile"
+    
     layout.rectangles = factory_data.rectangles or {}
     layout.mosaics = factory_data.mosaics or {}
 

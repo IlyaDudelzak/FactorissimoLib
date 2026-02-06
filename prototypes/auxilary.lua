@@ -36,7 +36,7 @@ if data then
             type = "simple-entity-with-force",
             name = "factory-blueprint-anchor",
             flags = {"player-creation", "placeable-off-grid"},
-            collision_box = {{-0.5, -0.5}, {0.5, 0.5}},
+            collision_box = {{-0.5, -0.5}, {0.5, 0.5}}, 
             selection_box = {{-0.5, -0.5}, {0.5, 0.5}},
             placeable_by = {item = "factory-connection-indicator-settings", count = 1}
         }
@@ -136,22 +136,22 @@ if data then
         {
             type = "simple-entity-with-force",
             name = "factory-horizontal-exit-door",
+            localised_name = "factorissimo.horizontal_factory_exit_door",
             icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
             icon_size = 64,
             flags = {
                 "placeable-neutral", 
                 "player-creation", 
                 "not-repairable", 
+                "not-rotatable",
                 "not-on-map", 
-                "not-selectable-in-game" -- Добавь, если не хочешь, чтобы её можно было "выбрать" мышкой
             },
             minable = nil,
+            subgroup = "factorissimo-parts",
             max_health = 500,
-            -- Ширина 4 (от -1.9 до 1.9), высота 2 (от -0.9 до 0.9)
-            -- Оставляем зазор 0.1, чтобы дверь не "застревала" в соседних тайлах
-            collision_box = {{-1.9, -0.9}, {1.9, 0.9}}, 
-            collision_mask = {layers = {}}, -- Игрок проходит насквозь
-            selection_box = {{-2.0, -1.0}, {2.0, 1.0}},
+            collision_box = {{-2, -1}, {2, 1}}, 
+            collision_mask = {layers = {}},
+            selection_box = {{-2, -1}, {2, 1}},
             render_layer = "object",
             picture = {
                 filename = "__core__/graphics/empty.png",
@@ -164,22 +164,22 @@ if data then
         {
             type = "simple-entity-with-force",
             name = "factory-vertical-exit-door",
+            localised_name = "factorissimo.vertical_factory_exit_door",
             icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
             icon_size = 64,
             flags = {
                 "placeable-neutral", 
                 "player-creation", 
                 "not-repairable", 
+                "not-rotatable",
                 "not-on-map", 
-                "not-selectable-in-game" -- Добавь, если не хочешь, чтобы её можно было "выбрать" мышкой
             },
             minable = nil,
+            subgroup = "factorissimo-parts",
             max_health = 500,
-            -- Ширина 4 (от -1.9 до 1.9), высота 2 (от -0.9 до 0.9)
-            -- Оставляем зазор 0.1, чтобы дверь не "застревала" в соседних тайлах
-            collision_box = {{-0.9, -1.9}, {0.9, 1.9}}, 
-            collision_mask = {layers = {}}, -- Игрок проходит насквозь
-            selection_box = {{-2.0, -1.0}, {2.0, 1.0}},
+            collision_box = {{-1, -2}, {1, 2}}, 
+            collision_mask = {layers = {}},
+            selection_box = {{-1, -2}, {1, 2}},
             render_layer = "object",
             picture = {
                 filename = "__core__/graphics/empty.png",
@@ -188,6 +188,7 @@ if data then
             }
         }
     })
+
     local factory_radar = table.deepcopy(data.raw["radar"]["radar"])
     factory_radar.name = "factorissimo-factory-radar"
     factory_radar.hidden_in_factoriopedia = true
@@ -199,10 +200,9 @@ if data then
         "not-on-map", 
         "not-blueprintable", 
         "not-deconstructable", 
-        "not-repairable"
+        "not-repairable",
     }
-    factory_radar.collision_box = nil
-    factory_radar.selection_box = nil
+    factory_radar.collision_mask = {layers = {}}
     factory_radar.selectable_in_game = false
 
     -- Делаем его абсолютно прозрачным (пустая картинка)

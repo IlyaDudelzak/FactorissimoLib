@@ -143,7 +143,7 @@ local function set_factory_active_or_inactive(factory)
     --     player.mine_entity(building, false)
     -- end
     factorissimo.create_flying_text {position = position, text = msg}
-
+    if not factory.connections then return end
     for cid, _ in pairs(factory.layout.connections) do
         local conn = factory.connections[cid]
         factorissimo.destroy_connection(conn)
@@ -395,6 +395,10 @@ local function create_factory_position(layout, building)
     factory.inside_surface = surface
     factory.inside_x = 32 * cx
     factory.inside_y = 32 * cy
+    factory.inside_pos = {
+        x = factory.inside_x,
+        y = factory.inside_y
+    }
     factory.stored_pollution = 0
     factory.outside_x = building.position.x
     factory.outside_y = building.position.y
@@ -464,8 +468,19 @@ local function create_factory_interior(layout, building)
     factory.layout = layout
     factory.force = force
     factory.quality = building.quality
-    factory.inside_door_x = layout.inside_door_x + factory.inside_x
-    factory.inside_door_y = layout.inside_door_y + factory.inside_y
+    
+    -- Корректируем координаты двери: смещаем на 1 тайл "наружу" (ниже для южной стороны)
+    -- Для универсальности добавим смещение в зависимости от стороны
+    local side = layout.factory_data.door.side
+    local dx, dy = 0, 0
+    if side == "s" then dy = 1
+    elseif side == "n" then dy = -1
+    elseif side == "e" then dx = 1
+    elseif side == "w" then dx = -1
+    end
+
+    factory.inside_door_x = layout.inside_door_x + factory.inside_x + dx
+    factory.inside_door_y = layout.inside_door_y + factory.inside_y + dy
 
     local tile_name_mapping = {}
     if factory.inside_surface.name == "se-spaceship-factory-floor" then
@@ -473,20 +488,17 @@ local function create_factory_interior(layout, building)
         tile_name_mapping["space-factory-entrance"] = "se-spaceship-factory-entrance"
     end
 
+    -- ... (код генерации тайлов без изменений) ...
+    local orig_tiles = remote_api.create_factory_tiles(layout.factory_data)
     local tiles = {}
-
-    -- НОВАЯ ЛОГИКА: Просто копируем заранее сгенерированные тайлы из layout.tiles
-    if layout.tiles then
-        for _, t in ipairs(layout.tiles) do
-            local tile_name = tile_name_mapping[t.name] or t.name
-            table.insert(tiles, {
-                name = tile_name,
-                position = {t.position[1] + factory.inside_x, t.position[2] + factory.inside_y}
-            })
-        end
+    for _, t in ipairs(orig_tiles) do
+        local tile_name = tile_name_mapping[t.name] or t.name
+        table.insert(tiles, {
+            name = tile_name,
+            position = {t.position[1] + factory.inside_x, t.position[2] + factory.inside_y}
+        })
     end
 
-    -- Добавляем тайлы соединений (портов)
     for _, cpos in pairs(layout.connections) do
         local tile_name = tile_name_mapping[layout.connection_tile] or layout.connection_tile
         table.insert(tiles, {
@@ -496,29 +508,107 @@ local function create_factory_interior(layout, building)
     end
 
     factory.inside_surface.set_tiles(tiles)
-    add_hidden_tile_rect(factory)
 
-    -- ... (остальной код без изменений: power_pole, cerys, radar и т.д.)
+    -- Энергосеть: подстанция теперь будет на 3 тайла ниже центра
     factorissimo.get_or_create_inside_power_pole(factory)
-    factorissimo.spawn_cerys_entities(factory)
+    
+    -- Если функция spawn_cerys_entities использует factory.inside_y, 
+    -- убедись, что внутри неё координаты тоже учитывают этот сдвиг.
+    -- Если мы хотим переопределить позицию здесь:
+    if factory.power_pole then
+        factory.power_pole.teleport({factory.inside_x, factory.inside_y + 3})
+    end
 
+    -- Радар и прочее
     local radar = factory.inside_surface.create_entity {
         name = "factorissimo-factory-radar",
-        position = {factory.inside_x, factory.inside_y},
+        position = {factory.inside_x, factory.inside_y}, -- Радар оставляем в центре
         force = force,
     }
     radar.destructible = false
-    factory.radar = radar
-    factory.inside_overlay_controllers = {}
 
-    factory.connections = {}
-    factory.connection_settings = {}
-    factory.connection_indicators = {}
+    -- Спавн двери (уже с учетом dx, dy)
+    local door_name = (side == "e" or side == "w") and "factory-vertical-exit-door" or "factory-horizontal-exit-door"
+    
+    local door = factory.inside_surface.create_entity {
+        name = door_name,
+        position = {factory.inside_door_x, factory.inside_door_y},
+        force = force,
+        raise_built = true 
+    }
 
-    factory.force.chart(factory.inside_surface, {{factory.inside_x - 32, factory.inside_y - 32}, {factory.inside_x + 32, factory.inside_y + 32}})
+    if door then
+        door.destructible = false
+        door.minable = false
+        factory.exit_door = door
+    end
+
+    -- Обновляем карту
+    factory.force.chart(factory.inside_surface, {
+        {factory.inside_x - 32, factory.inside_y - 32}, 
+        {factory.inside_x + 32, factory.inside_y + 32}
+    })
 
     return factory
 end
+
+local function create_factory_door(factory, building)
+    factorissimo.log("LOG: Start create_factory_door for " .. building.name)
+    
+    local layout = factory.layout
+    if not (layout and layout.door) then 
+        factorissimo.log("LOG: No layout or door found for factory")
+        return 
+    end
+
+    -- Очистка старой двери
+    if factory.entrance_door and factory.entrance_door.valid then
+        factorissimo.log("LOG: Destroying old door")
+        factory.entrance_door.destroy()
+    end
+
+    -- 1. Определяем имя сущности
+    local side = layout.door.side
+    local prefix = (side == "w" or side == "e") and "vertical" or "horizontal"
+    local door_entity_name = prefix .. "-factory-entrance-door-" .. tostring(layout.door.size)
+
+    -- 2. Рассчитываем позицию (середина двери на 0.2 тайла снаружи от края)
+    local spawn_pos = {x = building.position.x, y = building.position.y}
+    local b_proto = building.prototype
+    
+    -- Половина размера здания
+    local h_w = b_proto.tile_width / 2
+    local h_h = b_proto.tile_height / 2
+    
+    -- Смещение: край здания + 0.2
+    local out_offset = 0.2
+
+    if side == "n" then
+        spawn_pos.y = spawn_pos.y - (h_h + out_offset)
+    elseif side == "s" then
+        spawn_pos.y = spawn_pos.y + (h_h + out_offset)
+    elseif side == "w" then
+        spawn_pos.x = spawn_pos.x - (h_w + out_offset)
+    elseif side == "e" then
+        spawn_pos.x = spawn_pos.x + (h_w + out_offset)
+    end
+
+    local door = building.surface.create_entity{
+        name = door_entity_name,
+        position = spawn_pos,
+        force = building.force
+    }
+    
+    if door then
+        factorissimo.log("LOG: Door spawned successfully!")
+        door.destructible = false
+        storage.factories_by_entity[door.unit_number] = factory
+        factory.entrance_door = door
+    else
+        factorissimo.log("LOG: FAILED to create entity! Check if " .. door_entity_name .. " exists in game.entity_prototypes")
+    end
+end
+
 
 local function create_factory_exterior(factory, building)
     local layout = factory.layout
@@ -553,6 +643,7 @@ local function create_factory_exterior(factory, building)
     factorissimo.recheck_factory_connections(factory)
     factorissimo.update_power_connection(factory)
     factorissimo.update_overlay(factory)
+    create_factory_door(factory, building)
     build_factory_upgrades(factory)
     return factory
 end
@@ -826,6 +917,7 @@ end)
 -- FACTORY PLACEMENT AND INITALIZATION --
 
 local function create_fresh_factory(entity)
+    game.print("Creating fresh factory for " .. entity.name .. " at " .. serpent.line(entity.position))
     local layout = remote_api.create_layout(entity.name, entity.quality)
     local factory = create_factory_interior(layout, entity)
     create_factory_exterior(factory, entity)
@@ -1040,3 +1132,4 @@ if not remote then
         call = function() end,
     }
 end
+

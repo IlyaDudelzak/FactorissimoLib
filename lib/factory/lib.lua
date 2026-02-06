@@ -11,12 +11,9 @@ M.GLOBAL_FACTORY_BANK = "factorissimo-global-factory-storage"
 function M.prepare_factory_data(factory_data)
     if not factory_data then error("Factory data is nil") end
     local to_delete = {
-        "max_health",
         "graphics", 
         "recipe", 
         "technology", 
-        "recipe_alternatives", 
-        "technology_alternatives"
     }
     for _, f in ipairs(to_delete) do
         factory_data[f] = nil
@@ -66,6 +63,7 @@ if data then
         if factory_data.inside_size < factory_data.outside_size then
             error("Inside size must be larger or equal than outside size for factory: " .. tostring(factory_data.name))
         end
+        factory_data.door.side = factory_data.door.side or "s"
         DoorLib.check_door(factory_data)
         connections.check_connections(factory_data)
     end
@@ -121,7 +119,7 @@ if data then
         data.raw[prototype_table.bank_type][M.GLOBAL_FACTORY_BANK] = nil
     end
 else
-    local function load_all_factories()
+local function load_all_factories()
         local types_to_check = {"storage-tank", "space-platform-hub"}
         for _, type_name in ipairs(types_to_check) do
             local protos = prototypes.get_entity_filtered({{filter = "type", type = type_name}})
@@ -129,7 +127,7 @@ else
                 local fd = metadata.decode_metadata(prot)
                 if fd then
                     fd.name = name
-                    M.factories[name] = fd
+                    M.factories[name] = M.prepare_factory_data(fd)
                 end
             end
         end

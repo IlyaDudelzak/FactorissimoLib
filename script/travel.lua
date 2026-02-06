@@ -1,7 +1,10 @@
+if not script then
+    script = {active_mods = {}}
+end
+
 local find_surrounding_factory = remote_api.find_surrounding_factory
 local find_factory_by_area = remote_api.find_factory_by_area
 
--- Контроллеры без физического тела (боги, редакторы и т.д.)
 local god_controllers = {
     [defines.controllers.god] = true,
     [defines.controllers.editor] = true,
@@ -10,12 +13,12 @@ local god_controllers = {
 }
 
 factorissimo.on_event(factorissimo.events.on_init(), function()
+    factorissimo.log("LOG: Initializing travel module")
     storage.last_player_teleport = storage.last_player_teleport or {}
 end)
 
--- Создание технической поверхности для временного хранения игрока при телепортации
--- Это предотвращает баги с роботами и потерей инвентаря между поверхностями
 local function get_purgatory_surface()
+    factorissimo.log("LOG: Getting purgatory surface")
     if remote.interfaces["RSO"] then
         pcall(remote.call, "RSO", "ignoreSurface", "factory-travel-surface")
     end
@@ -24,25 +27,23 @@ local function get_purgatory_surface()
     if planet and planet.surface then return planet.surface end
 
     local surface = planet.create_surface()
-    -- Генерируем минимальный чанк, чтобы было куда "приземлиться"
+    factorissimo.log("LOG: Created new purgatory surface")
     surface.set_chunk_generated_status({0, 0}, defines.chunk_generated_status.entities)
     return surface
 end
 
--- Основная логика безопасного перемещения
 local function teleport_safely(entity, surface, position, player)
+    factorissimo.log("LOG: Teleporting entity safely")
     local pos = {x = position.x or position[1], y = position.y or position[2]}
 
     if entity.is_player() and not entity.character then
-        -- Для игроков без персонажа (режим бога) просто прыгаем
+        factorissimo.log("LOG: Teleporting player without character")
         entity.teleport(pos, surface)
     else
-        -- Для персонажей ищем свободное место рядом с дверью
+        factorissimo.log("LOG: Teleporting character")
         local safe_pos = surface.find_non_colliding_position(
             entity.character.name, pos, 5, 0.5, false
         ) or pos
-        
-        -- Двойной прыжок через "чистилище" фиксит баги с персональными робопортами
         entity.teleport({0, 0}, get_purgatory_surface())
         entity.teleport(safe_pos, surface)
     end
@@ -54,25 +55,44 @@ local function teleport_safely(entity, surface, position, player)
 end
 
 local function enter_factory(entity, factory, player)
+    factorissimo.log("LOG: Entering factory")
     teleport_safely(entity, factory.inside_surface, {factory.inside_door_x, factory.inside_door_y}, player)
 end
 
 local function leave_factory(entity, factory, player)
+    factorissimo.log("LOG: Leaving factory")
     teleport_safely(entity, factory.outside_surface, {factory.outside_door_x, factory.outside_door_y}, player)
 end
 
--- Совместимость с модом Jetpack
+-- Define the serpent global for logging purposes
+if not serpent then
+    serpent = {}
+    function serpent.line(value)
+        return tostring(value)
+    end
+end
+
+-- Correct the remote.call usage in get_jetpack_data
 local function get_jetpack_data()
+    factorissimo.log("LOG: Getting jetpack data")
     if script.active_mods["jetpack"] then
-        return remote.call("jetpack", "get_jetpacks", {})
+        local success, result = pcall(function()
+            return remote.call("jetpack", "get_jetpacks") -- Ensure no extra arguments are passed
+        end)
+        if success then
+            return result
+        else
+            factorissimo.log("LOG: Failed to call remote API for jetpack data")
+            return nil
+        end
     end
     return nil
 end
 
 local function is_player_airborne(jetpacks, player)
+    -- factorissimo.log("LOG: Checking if player is airborne")
     if not player.character then return false end
 
-    -- Проверка встроенных в броню реактивных двигателей (Space Age / Mech Suit)
     local armor_inv = player.get_inventory(defines.inventory.character_armor)
     if armor_inv and not armor_inv.is_empty() then
         local armor = armor_inv[1]
@@ -81,7 +101,6 @@ local function is_player_airborne(jetpacks, player)
         end
     end
 
-    -- Проверка внешнего мода Jetpack
     if jetpacks then
         local data = jetpacks[player.character.unit_number]
         return data and data.status == "flying"
@@ -89,8 +108,8 @@ local function is_player_airborne(jetpacks, player)
     return false
 end
 
--- Проверка выхода из фабрики (движение вниз через южную дверь)
 local function check_and_leave_factory(player, airborne)
+    -- factorissimo.log("LOG: Checking and leaving factory")
     if god_controllers[player.controller_type] then return end
 
     local walking_direction = player.walking_state.direction
@@ -106,11 +125,9 @@ local function check_and_leave_factory(player, airborne)
     local factory = find_surrounding_factory(player.physical_surface, pos)
     if not factory then return end
 
-    -- Порог по Y для выхода (чуть ниже двери)
     local exit_threshold = factory.inside_door_y + (airborne and 0.5 or -1)
     if pos.y <= exit_threshold then return end
 
-    -- Проверка, что игрок по центру двери (коридор в 4 клетки)
     if math.abs(pos.x - factory.inside_door_x) >= 4 then return end
 
     leave_factory(player, factory, player)
@@ -118,19 +135,15 @@ local function check_and_leave_factory(player, airborne)
     return true
 end
 
--- Проверка входа в здание (движение вверх через вход)
 local function check_and_enter_factory(player, airborne)
     local surface = player.physical_surface
     local pos = player.physical_position
-    
-    -- Ищем любую сущность двери рядом с игроком
-    -- Используем поиск по области, так как двери могут быть широкими
-    local doors = surface.find_entities_filtered{
-        type = "simple-entity-with-force", -- или используй prefix-поиск
-        position = pos,
-        radius = 1.5 
-    }
 
+    local doors = surface.find_entities_filtered{
+        area = {{pos.x - 1, pos.y - 1}, {pos.x + 1, pos.y + 1}},
+        type = "simple-entity-with-force"
+    }
+    -- game.print("LOG: doors found near player: " .. serpent.line(doors))
     local door = nil
     for _, d in pairs(doors) do
         if d.name:find("factory%-entrance%-door") then
@@ -140,25 +153,25 @@ local function check_and_enter_factory(player, airborne)
     end
 
     if door then
+        -- factorissimo.log("LOG: Found door near player for entering factory")
         local factory = remote_api.get_factory_by_entity(door)
         if factory and not factory.inactive then
             local layout = factory.layout
             local side = layout.door.side
             local dir = player.walking_state.direction
-            
-            -- Проверка: идет ли игрок ВНУТРИ здания через дверь
+
             local can_enter = false
-            
+
             if airborne then
-                can_enter = true -- Летающим юнитам можно всё
+                can_enter = true
             elseif side == "s" and (dir == defines.direction.north or dir == defines.direction.northeast or dir == defines.direction.northwest) then
-                can_enter = true -- Входим снизу, идем вверх
+                can_enter = true
             elseif side == "n" and (dir == defines.direction.south or dir == defines.direction.southeast or dir == defines.direction.southwest) then
-                can_enter = true -- Входим сверху, идем вниз
+                can_enter = true
             elseif side == "e" and (dir == defines.direction.west or dir == defines.direction.northwest or dir == defines.direction.southwest) then
-                can_enter = true -- Входим справа, идем влево
+                can_enter = true
             elseif side == "w" and (dir == defines.direction.east or dir == defines.direction.northeast or dir == defines.direction.southeast) then
-                can_enter = true -- Входим слева, идем вправо
+                can_enter = true
             end
 
             if can_enter then
@@ -166,40 +179,44 @@ local function check_and_enter_factory(player, airborne)
                 return true
             end
         end
+    else
+        -- factorissimo.log("LOG: No door found near player for entering factory")
     end
     return false
 end
 
--- Основной цикл проверки перемещений
-factorissimo.on_nth_tick(6, function()
+script.on_nth_tick(2, function()
+    -- factorissimo.log("LOG: Checking player movements on nth tick")
     local tick = game.tick
     local jetpacks = get_jetpack_data()
-    
+
     for _, player in pairs(game.connected_players) do
         if player.driving then goto continue end
-        
-        -- Защита от спам-телепорта (Cooldown ~0.5 сек)
+
         local last_tp = storage.last_player_teleport[player.index] or 0
         if tick - last_tp < 30 then goto continue end
         
-        if not player.walking_state.walking and not is_player_airborne(jetpacks, player) then 
+        local is_walking = player.walking_state.active -- Игрок жмет клавишу движения
+        local airborne = is_player_airborne(jetpacks, player)
+
+        if not is_walking and not airborne then 
             goto continue 
         end
-
-        local airborne = is_player_airborne(jetpacks, player)
+        
         if not check_and_enter_factory(player, airborne) then
             check_and_leave_factory(player, airborne)
         end
 
         ::continue::
     end
+    -- factorissimo.log("LOG: Finished checking player movements on nth tick")
 end)
 
--- Автоматический вход при смене поверхности (для Space Platform Hub)
 factorissimo.on_event(defines.events.on_player_changed_surface, function(e)
+    factorissimo.log("LOG: Player changed surface")
     local player = game.get_player(e.player_index)
     if not player or god_controllers[player.controller_type] then return end
-    
+
     local surface = player.surface
     if surface and surface.platform and surface.platform.hub then
         local factory = remote_api.get_factory_by_building(surface.platform.hub)
