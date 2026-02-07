@@ -318,3 +318,5 @@ factorissimo.recheck_factory_connections = recheck_factory_connections
 local function in_area(x, y, area)
     return x >= area.left_top.x and x <= area.right_bottom.x and y >= area.left_top.y and y <= area.right_bottom.y
 end
+
+require "port-markers"

@@ -460,92 +460,86 @@ end
 
 local function create_factory_interior(layout, building)
     local force = building.force
-
     local factory = create_factory_position(layout, building)
     factory.building = building
     factory.layout = layout
     factory.force = force
     factory.quality = building.quality
     
-    -- Корректируем координаты двери: смещаем на 1 тайл "наружу" (ниже для южной стороны)
-    -- Для универсальности добавим смещение в зависимости от стороны
-    local side = layout.factory_data.door.side
-    local dx, dy = 0, 0
-    local d = 2
-    if side == "s" then dy = d
-    elseif side == "n" then dy = -d
-    elseif side == "e" then dx = d
-    elseif side == "w" then dx = -d
-    end
+    local sides = type(layout.factory_data.door.side) == "table" and layout.factory_data.door.side or {layout.factory_data.door.side}
+    local extent = layout.inside_size / 2
+    factory.exit_doors = {}
 
-    factory.inside_door_x = layout.inside_door_x + factory.inside_x + dx
-    factory.inside_door_y = layout.inside_door_y + factory.inside_y + dy
-
-    local tile_name_mapping = {}
-    if factory.inside_surface.name == "se-spaceship-factory-floor" then
-        tile_name_mapping["space-factory-floor"] = "se-spaceship-factory-floor"
-        tile_name_mapping["space-factory-entrance"] = "se-spaceship-factory-entrance"
-    end
-
-    -- ... (код генерации тайлов без изменений) ...
+    -- Генерация тайлов
     local orig_tiles = remote_api.create_factory_tiles(layout.factory_data)
     local tiles = {}
     for _, t in ipairs(orig_tiles) do
-        local tile_name = tile_name_mapping[t.name] or t.name
         table.insert(tiles, {
-            name = tile_name,
+            name = t.name,
             position = {t.position[1] + factory.inside_x, t.position[2] + factory.inside_y}
         })
     end
-
+    -- Соединения
     for _, cpos in pairs(layout.connections) do
-        local tile_name = tile_name_mapping[layout.connection_tile] or layout.connection_tile
         table.insert(tiles, {
-            name = tile_name, 
+            name = layout.connection_tile, 
             position = {factory.inside_x + cpos.inside_x, factory.inside_y + cpos.inside_y}
         })
     end
-
     factory.inside_surface.set_tiles(tiles)
 
-    -- Энергосеть: подстанция теперь будет на 3 тайла ниже центра
+    -- Энергосеть
     factorissimo.get_or_create_inside_power_pole(factory)
-    
-    -- Если функция spawn_cerys_entities использует factory.inside_y, 
-    -- убедись, что внутри неё координаты тоже учитывают этот сдвиг.
-    -- Если мы хотим переопределить позицию здесь:
     if factory.power_pole then
-        factory.power_pole.teleport({factory.inside_x, factory.inside_y + 3})
+        local main_off = side_offsets[layout.main_side or "s"]
+        factory.power_pole.teleport({
+            factory.inside_x + (main_off.side_x * -4), 
+            factory.inside_y + (main_off.side_y * -4)
+        })
     end
 
-    -- Радар и прочее
+    -- Спавн ВНУТРЕННИХ дверей
+    for _, side in ipairs(sides) do
+        local dx, dy = 0, 0
+        local d = 2 -- Смещение в пустоту
+        if side == "s" then dy = d
+        elseif side == "n" then dy = -d - 1
+        elseif side == "e" then dx = d
+        elseif side == "w" then dx = -d - 1
+        end
+
+        local door_x = (extent + 1) * (side == "e" and 1 or (side == "w" and -1 or 0))
+        local door_y = (extent + 1) * (side == "s" and 1 or (side == "n" and -1 or 0))
+        
+        -- Имя по новому стандарту: factory-exit-door-s
+        local door_name = "factory-exit-door-" .. side
+        
+        local door = factory.inside_surface.create_entity {
+            name = door_name,
+            position = {factory.inside_x + door_x + dx, factory.inside_y + door_y + dy},
+            force = force,
+            raise_built = true 
+        }
+
+        if door then
+            door.destructible = false
+            door.minable = false
+            table.insert(factory.exit_doors, door)
+            if side == layout.main_side then factory.exit_door = door end
+        end
+    end
+
+    -- Радар
     local radar = factory.inside_surface.create_entity {
         name = "factorissimo-factory-radar",
-        position = {factory.inside_x, factory.inside_y}, -- Радар оставляем в центре
+        position = {factory.inside_x, factory.inside_y},
         force = force,
     }
     radar.destructible = false
 
-    -- Спавн двери (уже с учетом dx, dy)
-    local door_name = (side == "e" or side == "w") and "factory-vertical-exit-door" or "factory-horizontal-exit-door"
-    
-    local door = factory.inside_surface.create_entity {
-        name = door_name,
-        position = {factory.inside_door_x, factory.inside_door_y},
-        force = force,
-        raise_built = true 
-    }
-
-    if door then
-        door.destructible = false
-        door.minable = false
-        factory.exit_door = door
-    end
-
-    -- Обновляем карту
     factory.force.chart(factory.inside_surface, {
-        {factory.inside_x - 32, factory.inside_y - 32}, 
-        {factory.inside_x + 32, factory.inside_y + 32}
+        {factory.inside_x - 64, factory.inside_y - 64}, 
+        {factory.inside_x + 64, factory.inside_y + 64}
     })
 
     return factory
@@ -560,42 +554,33 @@ local function create_factory_doors(factory, building)
         return 
     end
 
-    -- Очистка старых дверей (теперь это таблица)
     if factory.entrance_doors then
         for _, old_door in pairs(factory.entrance_doors) do
             if old_door and old_door.valid then old_door.destroy() end
         end
     end
-    factory.entrance_doors = {} -- Инициализируем пустую таблицу для новых сущностей
+    factory.entrance_doors = {}
 
-    -- Поддержка как одиночной строки, так и таблицы сторон
     local sides = type(layout.door.side) == "table" and layout.door.side or {layout.door.side}
     local door_size = layout.door.size
     
     local b_proto = building.prototype
     local h_w = b_proto.tile_width / 2
     local h_h = b_proto.tile_height / 2
-    local out_offset = 0.2 -- Смещение от края здания
+    local out_offset = 0.2
 
     for _, side in ipairs(sides) do
-        -- 1. Определяем имя сущности для данной стороны
-        local prefix = (side == "w" or side == "e") and "vertical" or "horizontal"
-        local door_entity_name = prefix .. "-factory-entrance-door-" .. tostring(door_size)
+        -- Имя по новому стандарту: factory-entrance-door-2-s
+        local door_entity_name = "factory-entrance-door-" .. tostring(door_size) .. "-" .. side
 
-        -- 2. Рассчитываем позицию
         local spawn_pos = {x = building.position.x, y = building.position.y}
 
-        if side == "n" then
-            spawn_pos.y = spawn_pos.y - (h_h + out_offset)
-        elseif side == "s" then
-            spawn_pos.y = spawn_pos.y + (h_h + out_offset)
-        elseif side == "w" then
-            spawn_pos.x = spawn_pos.x - (h_w + out_offset)
-        elseif side == "e" then
-            spawn_pos.x = spawn_pos.x + (h_w + out_offset)
+        if side == "n" then spawn_pos.y = spawn_pos.y - (h_h + out_offset)
+        elseif side == "s" then spawn_pos.y = spawn_pos.y + (h_h + out_offset)
+        elseif side == "w" then spawn_pos.x = spawn_pos.x - (h_w + out_offset)
+        elseif side == "e" then spawn_pos.x = spawn_pos.x + (h_w + out_offset)
         end
 
-        -- 3. Спавним сущность
         local door = building.surface.create_entity{
             name = door_entity_name,
             position = spawn_pos,
@@ -604,13 +589,11 @@ local function create_factory_doors(factory, building)
         
         if door then
             door.destructible = false
-            -- Регистрируем в глобальном хранилище для телепортации
             storage.factories_by_entity[door.unit_number] = factory
-            -- Сохраняем в объекте фабрики
             table.insert(factory.entrance_doors, door)
-            factorissimo.log("LOG: Door spawned for side: " .. side)
+            factorissimo.log("LOG: Door spawned: " .. door_entity_name)
         else
-            factorissimo.log("LOG: FAILED to create door for side: " .. side)
+            factorissimo.log("LOG: FAILED to create door: " .. door_entity_name)
         end
     end
 end

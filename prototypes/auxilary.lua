@@ -132,62 +132,33 @@ if data then
             category = "factory-conditioning"
         }
     })
-    data:extend({
-        {
-            type = "simple-entity-with-force",
-            name = "factory-horizontal-exit-door",
-            localised_name = "factorissimo.horizontal_factory_exit_door",
-            icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
-            icon_size = 64,
-            flags = {
-                "placeable-neutral", 
-                "player-creation", 
-                "not-repairable", 
-                "not-rotatable",
-                "not-on-map", 
-            },
-            minable = nil,
-            subgroup = "factorissimo-parts",
-            max_health = 500,
-            collision_box = {{-2, -1}, {2, 1}}, 
-            collision_mask = {layers = {}},
-            selection_box = {{-2, -1}, {2, 1}},
-            render_layer = "object",
-            picture = {
-                filename = "__core__/graphics/empty.png",
-                width = 1,
-                height = 1,
+
+    local sides = {"n", "e", "s", "w"}
+
+    for _, side in ipairs(sides) do
+        data:extend({
+            {
+                type = "simple-entity-with-force",
+                name = "factory-exit-door-" .. side,
+                -- Локализация: "[Северная] выход из завода"
+                localised_name = {"", "[", {"factorissimo.side_name." .. side}, "] ", {"factorissimo.factory_exit_door"}},
+                icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
+                icon_size = 64,
+                flags = {"placeable-neutral", "player-creation", "not-repairable", "not-rotatable", "not-on-map"},
+                collision_mask = {layers = {}},
+                max_health = 500,
+                -- Хитбокс делаем квадратным или зависимым от стороны для удобства клика
+                collision_box = (side == "n" or side == "s") and {{-2, -0.5}, {2, 0.5}} or {{-0.5, -2}, {0.5, 2}},
+                selection_box = (side == "n" or side == "s") and {{-2, -0.5}, {2, 0.5}} or {{-0.5, -2}, {0.5, 2}},
+                render_layer = "object",
+                picture = {
+                    filename = "__core__/graphics/empty.png",
+                    width = 1,
+                    height = 1,
+                }
             }
-        }
-    })
-    data:extend({
-        {
-            type = "simple-entity-with-force",
-            name = "factory-vertical-exit-door",
-            localised_name = "factorissimo.vertical_factory_exit_door",
-            icon = "__FactorissimoLib__/graphics/icon/factory-subicon.png",
-            icon_size = 64,
-            flags = {
-                "placeable-neutral", 
-                "player-creation", 
-                "not-repairable", 
-                "not-rotatable",
-                "not-on-map", 
-            },
-            minable = nil,
-            subgroup = "factorissimo-parts",
-            max_health = 500,
-            collision_box = {{-1, -2}, {1, 2}}, 
-            collision_mask = {layers = {}},
-            selection_box = {{-1, -2}, {1, 2}},
-            render_layer = "object",
-            picture = {
-                filename = "__core__/graphics/empty.png",
-                width = 1,
-                height = 1,
-            }
-        }
-    })
+        })
+    end
 
     local factory_radar = table.deepcopy(data.raw["radar"]["radar"])
     factory_radar.name = "factorissimo-factory-radar"

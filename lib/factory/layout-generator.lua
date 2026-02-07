@@ -72,28 +72,6 @@ function M.add_tile_mosaic(factory_data, tiles)
     end
 end
 
-function factorissimo.rotate_pos(a, b, c)
-    local x = 0
-    local y = 0
-    local side = "n"
-
-    if c then 
-        x = a
-        y = b
-        side = c
-    else
-        x = a.x
-        y = a.y
-        side = b
-    end
-    
-    if side == "s" then return {x = x, y = y} end
-    if side == "n" then return {x = -x - 1, y = -y - 1} end
-    if side == "e" then return {x = y, y = -x - 1} end
-    if side == "w" then return {x = -y - 1, y = x} end
-    return {x = x, y = y}
-end
-
 function M.add_entrance(factory_data, tiles)
     if not factory_data.door or not factory_data.door.side then return end
     

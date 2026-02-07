@@ -67,8 +67,20 @@ local function build_connection(id, connection_data, side_code, fd)
     end
 
     local out_pos = {x = 0, y = 0}
-    out_pos[info.axis] = out_offset
-    out_pos[info.const] = (fd.outside_size / 2) * info.sign
+
+    -- ПАРАЛЛЕЛЬНО СТОРОНЕ: Сдвиг на 0.5 к центру (0)
+    if out_offset > 0.1 then
+        out_pos[info.axis] = out_offset - 0.5
+    elseif out_offset < -0.1 then
+        out_pos[info.axis] = out_offset + 0.5
+    else
+        out_pos[info.axis] = out_offset
+    end
+
+    -- ПЕРПЕНДИКУЛЯРНО СТОРОНЕ: Сдвиг на 0.5 внутрь от края
+    -- Мы вычитаем 0.5 из радиуса здания перед умножением на sign
+    local adjusted_extent_out = (fd.outside_size / 2) + 0.5
+    out_pos[info.const] = adjusted_extent_out * info.sign
 
     return {
         id = id,
@@ -92,7 +104,7 @@ local function get_mirrored_entries(entry)
     end
     return {
         entry,
-        { -out_pos - 1, -in_pos - 1, q }
+        { -out_pos, -in_pos - 1, q }
     }
 end
 
