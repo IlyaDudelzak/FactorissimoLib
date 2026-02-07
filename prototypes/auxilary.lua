@@ -302,3 +302,30 @@ if data then
         table.insert(data.raw["assembling-machine"]["assembling-machine-1"].crafting_categories or {}, "metallurgy-or-assembling")
     end
 end
+
+data:extend {{
+    type = "item",
+    name = "factory-overlay-controller-settings",
+    icon_size = data.raw.item["display-panel"].icon_size,
+    icon = data.raw.item["display-panel"].icon,
+    stack_size = 1,
+    hidden = true,
+    hidden_in_factoriopedia = true,
+    flags = {"not-stackable", "only-in-cursor"},
+    place_result = "factory-overlay-controller"
+}}
+
+local overlay_controller = table.deepcopy(data.raw["constant-combinator"]["constant-combinator"])
+overlay_controller.sprites = table.deepcopy(data.raw["display-panel"]["display-panel"].sprites)
+overlay_controller.name = "factory-overlay-controller"
+overlay_controller.icon_size = data.raw.item["display-panel"].icon_size
+overlay_controller.icon = data.raw.item["display-panel"].icon
+overlay_controller.hidden = true
+overlay_controller.circuit_wire_max_distance = 0
+overlay_controller.max_health = 500
+overlay_controller.minable = nil
+table.insert(overlay_controller.flags, "not-on-map")
+overlay_controller.collision_mask = {layers = {}}
+data:extend {overlay_controller}
+
+return M

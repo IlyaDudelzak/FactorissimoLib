@@ -152,14 +152,14 @@ end
 
 require "lights"
 require "greenhouse"
-require "roboport"
+require "roboport.roboport"
 require "overlay"
 
 local DEFAULT_FACTORY_UPGRADES = {
     {"factorissimo", "build_lights_upgrade"},
     {"factorissimo", "build_greenhouse_upgrade"},
     {"factorissimo", "build_display_upgrade"},
-    -- {"factorissimo", "build_roboport_upgrade"}
+    {"factorissimo", "build_roboport_upgrade"}
 }
 
 local function build_factory_upgrades(factory)
@@ -402,8 +402,6 @@ local function create_factory_position(layout, building)
     factory.stored_pollution = 0
     factory.outside_x = building.position.x
     factory.outside_y = building.position.y
-    factory.outside_door_x = factory.outside_x + layout.outside_door_x
-    factory.outside_door_y = factory.outside_y + layout.outside_door_y
     factory.outside_surface = building.surface
 
     -- 7. Сохранение данных
@@ -473,10 +471,11 @@ local function create_factory_interior(layout, building)
     -- Для универсальности добавим смещение в зависимости от стороны
     local side = layout.factory_data.door.side
     local dx, dy = 0, 0
-    if side == "s" then dy = 1
-    elseif side == "n" then dy = -1
-    elseif side == "e" then dx = 1
-    elseif side == "w" then dx = -1
+    local d = 2
+    if side == "s" then dy = d
+    elseif side == "n" then dy = -d
+    elseif side == "e" then dx = d
+    elseif side == "w" then dx = -d
     end
 
     factory.inside_door_x = layout.inside_door_x + factory.inside_x + dx
@@ -552,8 +551,8 @@ local function create_factory_interior(layout, building)
     return factory
 end
 
-local function create_factory_door(factory, building)
-    factorissimo.log("LOG: Start create_factory_door for " .. building.name)
+local function create_factory_doors(factory, building)
+    factorissimo.log("LOG: Start create_factory_doors for " .. building.name)
     
     local layout = factory.layout
     if not (layout and layout.door) then 
@@ -561,72 +560,92 @@ local function create_factory_door(factory, building)
         return 
     end
 
-    -- Очистка старой двери
-    if factory.entrance_door and factory.entrance_door.valid then
-        factorissimo.log("LOG: Destroying old door")
-        factory.entrance_door.destroy()
+    -- Очистка старых дверей (теперь это таблица)
+    if factory.entrance_doors then
+        for _, old_door in pairs(factory.entrance_doors) do
+            if old_door and old_door.valid then old_door.destroy() end
+        end
     end
+    factory.entrance_doors = {} -- Инициализируем пустую таблицу для новых сущностей
 
-    -- 1. Определяем имя сущности
-    local side = layout.door.side
-    local prefix = (side == "w" or side == "e") and "vertical" or "horizontal"
-    local door_entity_name = prefix .. "-factory-entrance-door-" .. tostring(layout.door.size)
-
-    -- 2. Рассчитываем позицию (середина двери на 0.2 тайла снаружи от края)
-    local spawn_pos = {x = building.position.x, y = building.position.y}
-    local b_proto = building.prototype
+    -- Поддержка как одиночной строки, так и таблицы сторон
+    local sides = type(layout.door.side) == "table" and layout.door.side or {layout.door.side}
+    local door_size = layout.door.size
     
-    -- Половина размера здания
+    local b_proto = building.prototype
     local h_w = b_proto.tile_width / 2
     local h_h = b_proto.tile_height / 2
-    
-    -- Смещение: край здания + 0.2
-    local out_offset = 0.2
+    local out_offset = 0.2 -- Смещение от края здания
 
-    if side == "n" then
-        spawn_pos.y = spawn_pos.y - (h_h + out_offset)
-    elseif side == "s" then
-        spawn_pos.y = spawn_pos.y + (h_h + out_offset)
-    elseif side == "w" then
-        spawn_pos.x = spawn_pos.x - (h_w + out_offset)
-    elseif side == "e" then
-        spawn_pos.x = spawn_pos.x + (h_w + out_offset)
-    end
+    for _, side in ipairs(sides) do
+        -- 1. Определяем имя сущности для данной стороны
+        local prefix = (side == "w" or side == "e") and "vertical" or "horizontal"
+        local door_entity_name = prefix .. "-factory-entrance-door-" .. tostring(door_size)
 
-    local door = building.surface.create_entity{
-        name = door_entity_name,
-        position = spawn_pos,
-        force = building.force
-    }
-    
-    if door then
-        factorissimo.log("LOG: Door spawned successfully!")
-        door.destructible = false
-        storage.factories_by_entity[door.unit_number] = factory
-        factory.entrance_door = door
-    else
-        factorissimo.log("LOG: FAILED to create entity! Check if " .. door_entity_name .. " exists in game.entity_prototypes")
+        -- 2. Рассчитываем позицию
+        local spawn_pos = {x = building.position.x, y = building.position.y}
+
+        if side == "n" then
+            spawn_pos.y = spawn_pos.y - (h_h + out_offset)
+        elseif side == "s" then
+            spawn_pos.y = spawn_pos.y + (h_h + out_offset)
+        elseif side == "w" then
+            spawn_pos.x = spawn_pos.x - (h_w + out_offset)
+        elseif side == "e" then
+            spawn_pos.x = spawn_pos.x + (h_w + out_offset)
+        end
+
+        -- 3. Спавним сущность
+        local door = building.surface.create_entity{
+            name = door_entity_name,
+            position = spawn_pos,
+            force = building.force
+        }
+        
+        if door then
+            door.destructible = false
+            -- Регистрируем в глобальном хранилище для телепортации
+            storage.factories_by_entity[door.unit_number] = factory
+            -- Сохраняем в объекте фабрики
+            table.insert(factory.entrance_doors, door)
+            factorissimo.log("LOG: Door spawned for side: " .. side)
+        else
+            factorissimo.log("LOG: FAILED to create door for side: " .. side)
+        end
     end
 end
-
 
 local function create_factory_exterior(factory, building)
     local layout = factory.layout
     local force = factory.force
+    
     factory.outside_x = building.position.x
     factory.outside_y = building.position.y
-    factory.outside_door_x = factory.outside_x + layout.outside_door_x
-    factory.outside_door_y = factory.outside_y + layout.outside_door_y
+    
+    -- Используем координаты главной двери из layout (защита от nil)
+    factory.outside_door_x = factory.outside_x + (layout.outside_door_x or 0)
+    factory.outside_door_y = factory.outside_y + (layout.outside_door_y or 0)
+    
     factory.outside_surface = building.surface
 
-    local oer = factory.outside_surface.create_entity {name = layout.outside_energy_receiver_type, position = {factory.outside_x, factory.outside_y}, force = force}
+    -- Энергоприемник
+    local oer = factory.outside_surface.create_entity {
+        name = layout.outside_energy_receiver_type, 
+        position = {factory.outside_x, factory.outside_y}, 
+        force = force
+    }
     oer.destructible = false
     oer.operable = false
     oer.rotatable = false
     factory.outside_energy_receiver = oer
 
+    -- Глобальная сеть (для модов типа Space Age/Platform)
     if factory.outside_surface.has_global_electric_network then
-        local genp = factory.outside_surface.create_entity {name = "factory-global-electric-network-pole", position = {factory.outside_x, factory.outside_y}, force = force}
+        local genp = factory.outside_surface.create_entity {
+            name = "factory-global-electric-network-pole", 
+            position = {factory.outside_x, factory.outside_y}, 
+            force = force
+        }
         genp.destructible = false
         genp.operable = false
         genp.rotatable = false
@@ -640,10 +659,14 @@ local function create_factory_exterior(factory, building)
     factory.building = building
     factory.built = true
 
+    -- Обновляем системы
     factorissimo.recheck_factory_connections(factory)
     factorissimo.update_power_connection(factory)
     factorissimo.update_overlay(factory)
-    create_factory_door(factory, building)
+    
+    -- ВЫЗОВ НОВОЙ ФУНКЦИИ (множественные двери)
+    create_factory_doors(factory, building)
+    
     build_factory_upgrades(factory)
     return factory
 end

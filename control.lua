@@ -6,7 +6,7 @@ remote_api = require("script.factory-api")
 
 require "script.connections.connections"
 require "script.factory-buildings"
-require "script.roboport"
+require "script.roboport.roboport"
 require "script.blueprint"
 require "script.camera"
 require "script.travel"

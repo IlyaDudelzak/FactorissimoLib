@@ -11,10 +11,16 @@ function M.check_door(fd)
         error("Outside door side must be defined for factory: " .. tostring(fd.name))
     end
     
+    -- Теперь side — это таблица (благодаря твоей правке в factory_data)
+    local sides = type(door.side) == "table" and door.side or {door.side}
     local valid_sides = {n = true, e = true, s = true, w = true}
-    if not valid_sides[door.side] then
-        error("Outside door side must be one of 'n', 'e', 's', 'w' for factory: " .. tostring(fd.name))
+    
+    for _, side in ipairs(sides) do
+        if not valid_sides[side] then
+            error("Outside door side must be one of 'n', 'e', 's', 'w'. Got: " .. tostring(side))
+        end
     end
+
     if not door.size then
         error("Outside door size must be defined for factory: " .. tostring(fd.name))
     end
@@ -65,12 +71,22 @@ if data then
     function M.create_door(fd)
         M.check_door(fd)
 
-        local side = fd.door.side
-        if side == "w" or side == "e" then
-            return M.create_vertical_door(fd)
-        else
-            return M.create_horizontal_door(fd)
+        local sides = fd.door.side
+        local last_name = ""
+
+        -- Проходим по всем сторонам, чтобы убедиться, что прототипы созданы
+        -- (Например, если у нас {"s", "e"}, создадутся и горизонтальная, и вертикальная сущности)
+        for _, side in ipairs(sides) do
+            if side == "w" or side == "e" then
+                last_name = M.create_vertical_door(fd)
+            else
+                last_name = M.create_horizontal_door(fd)
+            end
         end
+        
+        -- Возвращаем имя последней созданной, 
+        -- хотя для логики создания фабрик это теперь не критично
+        return last_name
     end
 end
 

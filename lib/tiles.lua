@@ -12,10 +12,9 @@ if data then
                 resource = true, 
                 floor = true, 
                 item = true, 
-                object = true, 
-                player = true, 
                 doodad = true 
-            } }
+            } 
+        }
     end
 
     local function wall_mask()

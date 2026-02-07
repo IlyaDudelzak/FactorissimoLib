@@ -64,6 +64,7 @@ if data then
             error("Inside size must be larger or equal than outside size for factory: " .. tostring(factory_data.name))
         end
         factory_data.door.side = factory_data.door.side or "s"
+        factory_data.door.side = type(factory_data.door.side) == "table" and factory_data.door.side or {factory_data.door.side}
         DoorLib.check_door(factory_data)
         connections.check_connections(factory_data)
     end
@@ -93,7 +94,9 @@ if data then
             FactoryPrototypes.make_item,
             FactoryPrototypes.make_instantiated_item,
             FactoryPrototypes.make_recipe,
-            FactoryPrototypes.make_technology
+            FactoryPrototypes.make_technology,
+            FactoryPrototypes.make_requester_chest,
+            FactoryPrototypes.make_eject_chest,
         }
         
         for _, create in ipairs(creators) do

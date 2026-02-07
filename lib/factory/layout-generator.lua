@@ -4,6 +4,8 @@ local connections = require("lib.factory.connections")
 
 local pattern_gen = require("lib.pattern-gen")
 
+M.SIDE_PRIORITY = { s = 1, n = 2, e = 3, w = 4 }
+
 function M.make_space_line(number)
     local line = ""
     while true do 
@@ -70,7 +72,21 @@ function M.add_tile_mosaic(factory_data, tiles)
     end
 end
 
-local function rotate_pos(x, y, side)
+function factorissimo.rotate_pos(a, b, c)
+    local x = 0
+    local y = 0
+    local side = "n"
+
+    if c then 
+        x = a
+        y = b
+        side = c
+    else
+        x = a.x
+        y = a.y
+        side = b
+    end
+    
     if side == "s" then return {x = x, y = y} end
     if side == "n" then return {x = -x - 1, y = -y - 1} end
     if side == "e" then return {x = y, y = -x - 1} end
@@ -79,94 +95,63 @@ local function rotate_pos(x, y, side)
 end
 
 function M.add_entrance(factory_data, tiles)
-    if not factory_data.door then return end
+    if not factory_data.door or not factory_data.door.side then return end
     
-    local side = factory_data.door.side
+    local sides = type(factory_data.door.side) == "table" and factory_data.door.side or {factory_data.door.side}
     local extent = factory_data.inside_size / 2
-    local i = #tiles
-    
-    local wall_tile = "factory-wall-color-" .. 
-        math.floor(factory_data.color.r * 255) .. "-" .. 
-        math.floor(factory_data.color.g * 255) .. "-" .. 
-        math.floor(factory_data.color.b * 255)
+    local wall_tile = "factory-wall-color-" .. math.floor(factory_data.color.r * 255) .. "-" .. math.floor(factory_data.color.g * 255) .. "-" .. math.floor(factory_data.color.b * 255)
     local entrance_tile = "factory-entrance-floor"
 
-    -- Базовые координаты для ЮЖНОЙ стороны (S):
-    -- Стенка находится на y = extent
-    
-    -- 1. Прямоугольник входа 4x3 (Центрирован: x от -2 до 1)
-    -- Один ряд (dy=0) накладывается на линию стены, два ряда (dy=1,2) выходят наружу
-    for dy = 0, 2 do
-        for dx = -2, 1 do
-            local p = rotate_pos(dx, extent + dy, side)
-            i = i + 1
-            tiles[i] = {name = entrance_tile, position = {p.x, p.y}}
+    for _, side in ipairs(sides) do
+        local i = #tiles
+        for dy = 0, 3 do
+            for dx = -2, 1 do
+                local p = factorissimo.rotate_pos(dx, extent + dy, side)
+                tiles[#tiles + 1] = {name = entrance_tile, position = {p.x, p.y}}
+            end
         end
-    end
 
-    -- 2. Три тайла стены в каждую сторону от прямоугольника (на линии стены)
-    -- Слева: -5, -4, -3. Справа: 2, 3, 4.
-    local wall_offsets = {-5, -4, -3, 2, 3, 4}
-    for _, dx in ipairs(wall_offsets) do
-        local p = rotate_pos(dx, extent, side)
-        i = i + 1
-        tiles[i] = {name = wall_tile, position = {p.x, p.y}}
-    end
+        for dy = 1, 3 do
+            local p1 = factorissimo.rotate_pos(-3, extent + dy, side)
+            local p2 = factorissimo.rotate_pos(2, extent + dy, side)
+            tiles[#tiles + 1] = {name = wall_tile, position = {p1.x, p1.y}}
+            tiles[#tiles + 1] = {name = wall_tile, position = {p2.x, p2.y}}
+        end
 
-    -- 3. Два тайла стены "вниз" (наружу), прилегая к прямоугольнику
-    -- Слева от входа (x=-3) и справа (x=2) на глубину dy=1, dy=2
-    for dy = 1, 2 do
-        -- Левое "ушко"
-        local p1 = rotate_pos(-3, extent + dy, side)
-        i = i + 1
-        tiles[i] = {name = wall_tile, position = {p1.x, p1.y}}
-        
-        -- Правое "ушко"
-        local p2 = rotate_pos(2, extent + dy, side)
-        i = i + 1
-        tiles[i] = {name = wall_tile, position = {p2.x, p2.y}}
+        local wall_offsets = {-5, -4, -3, 2, 3, 4}
+        for _, dx in ipairs(wall_offsets) do
+            local p = factorissimo.rotate_pos(dx, extent, side)
+            tiles[#tiles + 1] = {name = wall_tile, position = {p.x, p.y}}
+        end
     end
 end
 
 function M.add_walls(factory_data, tiles)
     local size = factory_data.inside_size
     local extent = size / 2
-    local tile_name = "factory-wall-color-" .. 
-        math.floor(factory_data.color.r * 255) .. "-" .. 
-        math.floor(factory_data.color.g * 255) .. "-" .. 
-        math.floor(factory_data.color.b * 255)
-    local connection_tile_name = "factory-connection-tile"
+    local tile_name = "factory-wall-color-" .. math.floor(factory_data.color.r * 255) .. "-" .. math.floor(factory_data.color.g * 255) .. "-" .. math.floor(factory_data.color.b * 255)
     
-    local i = #tiles
-    local door_side = factory_data.door and factory_data.door.side
+    local sides = type(factory_data.door.side) == "table" and factory_data.door.side or {factory_data.door.side}
+    local is_door = {}
+    for _, s in ipairs(sides) do is_door[s] = true end
 
-    -- 1. Горизонтальные линии (Верх и Низ)
+    -- Горизонтальные стены
     for x = -extent - 1, extent do
-        -- Верх (North)
-        if not (door_side == "n" and x >= -5 and x <= 4) then
-            i = i + 1
-            tiles[i] = {name = tile_name, position = {x, -extent - 1}}
+        if not (is_door["n"] and x >= -5 and x <= 4) then
+            tiles[#tiles + 1] = {name = tile_name, position = {x, -extent - 1}}
         end
-        
-        -- Низ (South)
-        if not (door_side == "s" and x >= -5 and x <= 4) then
-            i = i + 1
-            tiles[i] = {name = tile_name, position = {x, extent}}
+        if not (is_door["s"] and x >= -5 and x <= 4) then
+            tiles[#tiles + 1] = {name = tile_name, position = {x, extent}}
         end
     end
 
-    -- 2. Вертикальные линии (Лево и Право)
+    -- Вертикальные стены
     for y = -extent, extent - 1 do
-        -- Лево (West)
-        if not (door_side == "w" and y >= -5 and y <= 4) then
-            i = i + 1
-            tiles[i] = {name = tile_name, position = {-extent - 1, y}}
+        if not (is_door["w"] and y >= -5 and y <= 4) then
+            tiles[#tiles + 1] = {name = tile_name, position = {-extent - 1, y}}
         end
-        
-        -- Право (East)
-        if not (door_side == "e" and y >= -5 and y <= 4) then
-            i = i + 1
-            tiles[i] = {name = tile_name, position = {extent, y}}
+        if not (is_door["e"] and y >= -5 and y <= 4) then
+            tiles[#tiles + 1] = {name = tile_name, position = {extent, y}}
         end
     end
 end
@@ -207,61 +192,70 @@ local side_offsets = {
 
 function M.generate_layout(factory_data, quality)
     local layout = {}
-    
-    -- 1. Базовая информация
     layout.name = factory_data.name
-    layout.tier = factory_data.tier or 1
     layout.inside_size = factory_data.inside_size
     layout.outside_size = factory_data.outside_size
-    layout.quality = quality
     layout.factory_data = factory_data
 
-    -- 2. Логика Двери
-    local door = factory_data.door
-    local side = door.side
-    local off = side_offsets[side]
-    layout.door = door
-
-    layout.outside_door_x = (layout.outside_size / 2) * off.x
-    layout.outside_door_y = (layout.outside_size / 2) * off.y
+    -- 1. Обработка списка сторон
+    local sides = type(factory_data.door.side) == "table" and factory_data.door.side or {factory_data.door.side}
+    
+    -- Выбираем главную сторону (для подстанции и оверлея)
+    local main_side = sides[1]
+    for i = 2, #sides do
+        if M.SIDE_PRIORITY[sides[i]] < M.SIDE_PRIORITY[main_side] then main_side = sides[i] end
+    end
+    
+    layout.main_side = main_side
+    layout.all_sides = sides
+    
+    -- !!! ВОТ ЭТОГО НЕ ХВАТАЛО !!!
+    -- Мы сохраняем структуру door, чтобы create_factory_doors видела размер и стороны
+    layout.door = {
+        side = sides,
+        size = factory_data.door.size
+    }
+    
+    local off = side_offsets[main_side]
     layout.inside_door_x = (layout.inside_size / 2 + 1) * off.x
     layout.inside_door_y = (layout.inside_size / 2 + 1) * off.y
 
-    -- 3. Энергия (ВОЗВРАЩАЕМ inside_energy_pos)
-    -- Расчет позиции столба: 4 тайла вбок от двери и 1 тайл внутрь
+    -- Координаты для exterior (чтобы не было nil в арифметике)
+    layout.outside_door_x = (layout.outside_size / 2) * off.x
+    layout.outside_door_y = (layout.outside_size / 2) * off.y
+
+    -- 2. Энергия
     layout.inside_energy_pos = {
         x = layout.inside_door_x + (off.side_x * -4) - (off.x * 1),
-        y = layout.inside_door_y + (off.side_y * -4) - (off.y * 1)
+        y = layout.inside_door_y + (off.side_y * -4) - (off.y * 1) + 2
     }
     
     layout.outside_energy_receiver_type = factory_data.outside_energy_receiver_type or ("factory-power-input-" .. layout.outside_size)
 
-    -- 4. Оверлеи
+    -- 3. Оверлеи
     if factory_data.overlays then
         layout.overlays = table.deepcopy(factory_data.overlays)
     else
         layout.overlays = {
             outside_x = 0,
-            outside_y = -1,
+            outside_y = (main_side == "n" or main_side == "s") and (layout.outside_door_y - off.y) or 0,
             outside_w = layout.outside_size,
             outside_h = layout.outside_size - 2,
-            inside_pos = { -- Используем таблицу для консистентности
+            inside_pos = {
                 x = layout.inside_door_x + (off.side_x * -3.5) - (off.x * 2),
                 y = layout.inside_door_y + (off.side_y * -3.5) - (off.y * 2)
             }
         }
     end
 
-    -- 5. Cerys (Радиационные башни)
+    -- 4. Cerys (Исправил side на main_side)
     layout.cerys_radiative_towers = {}
     if factory_data.cerys_radiative_towers then
         for _, pos in ipairs(factory_data.cerys_radiative_towers) do
-            -- Вращаем старые координаты (которые обычно для Юга) под текущую дверь
-            local rotated = rotate_pos(pos[1], pos[2], side)
+            local rotated = factorissimo.rotate_pos(pos[1], pos[2], main_side)
             table.insert(layout.cerys_radiative_towers, {x = rotated.x, y = rotated.y})
         end
     else
-        -- Дефолт: башни по углам внутри
         local dist = (layout.inside_size / 2) - 5
         layout.cerys_radiative_towers = {
             {x = -dist, y = -dist}, {x = dist, y = -dist},
@@ -269,7 +263,7 @@ function M.generate_layout(factory_data, quality)
         }
     end
 
-    -- 6. Остальное
+    -- 5. Остальное
     layout.outside_requester_chest = factory_data.outside_requester_chest or ("factory-requester-chest-" .. layout.name)
     layout.outside_ejector_chest = factory_data.outside_ejector_chest or ("factory-eject-chest-" .. layout.name)
 

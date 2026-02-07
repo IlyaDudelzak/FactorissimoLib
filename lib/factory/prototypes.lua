@@ -73,6 +73,59 @@ if data then
 
         return tech
     end
+    M.make_requester_chest = function(factory_data)
+        local requester_chest = table.deepcopy(data.raw.container["steel-chest"])
+        requester_chest.name = "factory-requester-chest-" .. factory_data.name
+        requester_chest.localised_name = {"entity-name.factory-requester-chest"}
+        requester_chest.icon = factory_data.graphics.icon
+        requester_chest.icon_size = factory_data.graphics.icon_size
+        
+        -- Копируем коллизию из параметров графики или сущности
+        requester_chest.collision_box = factory_data.graphics.collision_box or {{-0.5, -0.5}, {0.5, 0.5}}
+        requester_chest.selection_box = nil
+        requester_chest.inventory_type = "with_custom_stack_size"
+        requester_chest.inventory_properties = {stack_size_multiplier = 50}
+        requester_chest.inventory_size = 100
+        requester_chest.picture = {
+            filename = "__core__/graphics/empty.png",
+            width = 1, height = 1, frame_count = 1
+        }
+        requester_chest.hidden = true
+        requester_chest.factoriopedia_alternative = factory_data.name
+        requester_chest.flags = {"not-on-map", "hide-alt-info", "no-automated-item-removal", "no-automated-item-insertion", "not-in-kill-statistics", "not-rotatable", "placeable-off-grid"}
+        
+        -- Общие правки (коллизии и маски)
+        requester_chest.collision_mask = {layers = {}}
+        requester_chest.subgroup = "factorissimo-roboports"
+        requester_chest.max_health = 500
+        
+        return requester_chest
+    end
+
+    M.make_eject_chest = function(factory_data)
+        local eject_chest = table.deepcopy(data.raw.container["steel-chest"])
+        eject_chest.name = "factory-eject-chest-" .. factory_data.name
+        eject_chest.inventory_size = 1
+        eject_chest.localised_name = {"entity-name.factory-eject-chest"}
+        eject_chest.icon = factory_data.graphics.icon
+        eject_chest.icon_size = factory_data.graphics.icon_size
+        eject_chest.collision_box = factory_data.graphics.collision_box or {{-0.5, -0.5}, {0.5, 0.5}}
+        eject_chest.selection_box = nil
+        eject_chest.picture = {
+            filename = "__core__/graphics/empty.png",
+            width = 1, height = 1, frame_count = 1
+        }
+        eject_chest.hidden = true
+        eject_chest.factoriopedia_alternative = factory_data.name
+        eject_chest.flags = {"not-on-map", "hide-alt-info", "no-automated-item-removal", "no-automated-item-insertion", "not-in-kill-statistics", "not-rotatable", "placeable-off-grid"}
+        
+        e_mask = {layers = {}}
+        eject_chest.collision_mask = {layers = {}}
+        eject_chest.subgroup = "factorissimo-roboports"
+        eject_chest.max_health = 500
+        
+        return eject_chest
+    end
 end
 
 return M

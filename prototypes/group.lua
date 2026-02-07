@@ -1,9 +1,9 @@
 data:extend({
   {
     type = "item-group",
-    name = "factorissimo-group", -- Внутреннее имя
-    order = "f",                 -- Порядок вкладки относительно других (f — после боеприпасов)
-    icon = "__FactorissimoLib__/graphics/icon/thumbnail.png", -- Путь к иконке вкладки
+    name = "factorissimo-group", -- Internal name
+    order = "f",                 -- Order of the tab
+    icon = "__FactorissimoLib__/graphics/icon/thumbnail.png", -- Path to the tab icon
     icon_size = 256,
   },
 })
@@ -50,6 +50,12 @@ data:extend({
     name = "factorissimo-factory-floors",
     group = "factorissimo-group",
     order = "za",
+  },
+  {
+    type = "item-subgroup",
+    name = "factorissimo-roboports",
+    group = "factorissimo-group",
+    order = "zb",
   },
 })
 

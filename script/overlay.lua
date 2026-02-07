@@ -135,9 +135,10 @@ function factorissimo.build_display_upgrade(factory)
     if factory.inside_overlay_controller and factory.inside_overlay_controller.valid then return end
     
     local pos = factory.layout.overlays
+    local rotated_position = factorissimo.rotate_pos(factorissimo.add_pos(factory.inside_pos, pos.inside_pos), factory.layout.door_side)
     local controller = factory.inside_surface.create_entity {
         name = "factory-overlay-controller",
-        position = { factory.inside_x + pos.inside_x, factory.inside_y + pos.inside_y },
+        position = rotated_position,
         force = factory.force,
         quality = factory.quality
     }

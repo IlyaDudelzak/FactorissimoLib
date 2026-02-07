@@ -6,12 +6,12 @@ local east = defines.direction.east
 local south = defines.direction.south
 local west = defines.direction.west
 
--- Таблицы соответствий для инверсии и смещений индикаторов
+-- Таблицы соответствий
 local opposite = {[north] = south, [east] = west, [south] = north, [west] = east}
 local DX = {[north] = 0, [east] = 1, [south] = 0, [west] = -1}
 local DY = {[north] = -1, [east] = 0, [south] = 1, [west] = 0}
 
--- Метаданные для осей каждой стороны
+-- Метаданные для осей
 local side_infos = {
     n = {dir = north, axis = "x", const = "y", sign = -1},
     s = {dir = south, axis = "x", const = "y", sign = 1},
@@ -19,16 +19,28 @@ local side_infos = {
     w = {dir = west,  axis = "y", const = "x", sign = -1}
 }
 
---- Вспомогательная функция: проверка попадания во внутреннюю зону двери (-5 до 5)
--- Зона двери теперь тоже симметрична: от -6 до 5 (ровно 12 тайлов) или от -5 до 4 (10 тайлов)
--- Для сегмента 11 тайлов используем диапазон [-5, 5]
+--- Вспомогательная функция: ПРОВЕРКА ВСЕХ ДВЕРЕЙ
+-- Теперь проверяет, входит ли side_code в список разрешенных сторон дверей
 local function is_in_internal_door_zone(inner_pos, side_code, fd)
-    if not fd.door or side_code ~= fd.door.side then return false end
-    -- Центр двери смещен на -0.5 для симметрии в четной сетке
+    if not fd.door or not fd.door.side then return false end
+    
+    -- Проверяем, есть ли текущая сторона в списке дверей
+    local is_door_side = false
+    for _, s in ipairs(fd.door.side) do
+        if s == side_code then
+            is_door_side = true
+            break
+        end
+    end
+    
+    if not is_door_side then return false end
+    
+    -- Зона двери (симметрично для четной сетки)
+    -- [-6, 5] охватывает центральные 12 тайлов
     return inner_pos >= -6 and inner_pos <= 5
 end
 
---- Проверка на наложение портов (минимум 2 тайла между центрами)
+--- Проверка на наложение портов
 local function is_overlapping(pos, used_positions)
     for _, existing in ipairs(used_positions) do
         if math.abs(pos - existing) < 2 then return true end
@@ -48,9 +60,6 @@ local function build_connection(id, connection_data, side_code, fd)
     local in_pos = {x = 0, y = 0}
     in_pos[info.axis] = in_offset
     
-    -- КОРРЕКЦИЯ: 
-    -- Если sign -1 (север/запад), стена на -(extent + 1)
-    -- Если sign  1 (юг/восток), стена на extent
     if info.sign == -1 then
         in_pos[info.const] = -(extent + 1)
     else
@@ -75,34 +84,26 @@ local function build_connection(id, connection_data, side_code, fd)
     }
 end
 
---- Функция зеркалирования: исправлена для симметрии в четной сетке
--- В сетке 30x30 (от -15 до 14) зеркалом для 9 является -10
+--- Функция зеркалирования
 local function get_mirrored_entries(entry)
     local out_pos, in_pos, q = entry[1], entry[2], entry[3]
-    -- Если порт ровно по центру (между -1 и 0 в четной сетке)
     if out_pos == -0.5 and in_pos == -0.5 then
         return { entry }
     end
     return {
         entry,
-        { -out_pos - 1, -in_pos - 1, q } -- Правильное зеркалирование для Factorio
+        { -out_pos - 1, -in_pos - 1, q }
     }
 end
 
 M.connection_handlers = {manual = {}, manual_side = {}, automatic = {}}
 
-function M.connection_handlers.manual.check(fd)
-    if not fd.connections or type(fd.connections) ~= "table" then
-        error("Manual handler requires side-specific tables (n,s,e,w) for: " .. fd.name)
-    end
-end
-
+-- Обработка Manual (когда для каждой стороны прописаны свои порты)
 function M.connection_handlers.manual.generate(fd)
     local connections = {}
     local side_codes = {"n", "s", "e", "w"}
     local source = fd.connections
     
-    -- Клонируем восточную сторону из западной, если она не задана
     if not source.e and source.w then source.e = source.w end
 
     for _, side in ipairs(side_codes) do
@@ -115,11 +116,8 @@ function M.connection_handlers.manual.generate(fd)
             for _, conn_data in ipairs(pairs) do
                 local in_pos = conn_data[2]
                 
-                if is_in_internal_door_zone(in_pos, side, fd) then
-                    -- Мы не прерываемся ошибкой, а просто логируем или пропускаем, 
-                    -- чтобы не крашить игру при автогенерации
-                    -- log("Port skipped: overlaps door zone")
-                else
+                -- Блокируем, если на этой конкретной стороне в этом месте стоит дверь
+                if not is_in_internal_door_zone(in_pos, side, fd) then
                     table.insert(used_in_positions, in_pos)
                     local id = side .. count
                     connections[id] = build_connection(id, conn_data, side, fd)
@@ -131,12 +129,7 @@ function M.connection_handlers.manual.generate(fd)
     return connections
 end
 
-function M.connection_handlers.manual_side.check(fd)
-    if not fd.connections.connections or #fd.connections.connections == 0 then
-        error("Manual_side requires 'connections' list for: " .. fd.name)
-    end
-end
-
+-- Обработка Manual_side (один список портов дублируется на все стороны)
 function M.connection_handlers.manual_side.generate(fd)
     local connections = {}
     local side_codes = {"n", "s", "e", "w"}
@@ -150,6 +143,8 @@ function M.connection_handlers.manual_side.generate(fd)
             for _, conn_data in ipairs(pairs) do
                 local in_pos = conn_data[2]
                 
+                -- Если сторона текущей итерации 'side' совпадает с одной из дверей, 
+                -- проверяем зону двери
                 if not is_in_internal_door_zone(in_pos, side, fd) then
                     if not is_overlapping(in_pos, used_in_positions) then
                         table.insert(used_in_positions, in_pos)
@@ -162,6 +157,19 @@ function M.connection_handlers.manual_side.generate(fd)
         end
     end
     return connections
+end
+
+-- Остальные функции без изменений логики (только проверка handler)
+function M.connection_handlers.manual.check(fd)
+    if not fd.connections or type(fd.connections) ~= "table" then
+        error("Manual handler error in: " .. fd.name)
+    end
+end
+
+function M.connection_handlers.manual_side.check(fd)
+    if not fd.connections.connections or #fd.connections.connections == 0 then
+        error("Manual_side error in: " .. fd.name)
+    end
 end
 
 function M.connection_handlers.automatic.check(fd) error("Automatic not implemented") end

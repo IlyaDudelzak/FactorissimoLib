@@ -45,19 +45,17 @@ local function draw_planet_icon_on_inside_power_pole(factory)
     rendering.draw_sprite(sprite_data)
 end
 
-local function add_pos(a, b)
-    return {x = a.x + b.x, y = a.y + b.y}
-end
-
 local function get_or_create_inside_power_pole(factory)
     if factory._inside_power_pole and factory._inside_power_pole.valid then
         return factory._inside_power_pole
     end
 
     local layout = factory.layout
+    local rotated_position = factorissimo.rotate_pos(factorissimo.add_pos(layout.inside_energy_pos, factory.inside_pos), layout.door_side)
+
     local power_pole = factory.inside_surface.create_entity {
         name = "factory-power-pole",
-        position = add_pos(layout.inside_energy_pos, factory.inside_pos),
+        position = rotated_position,
         force = factory.force,
         quality = factory.quality
     }
@@ -67,6 +65,7 @@ local function get_or_create_inside_power_pole(factory)
     draw_planet_icon_on_inside_power_pole(factory)
     return factory._inside_power_pole
 end
+
 factorissimo.get_or_create_inside_power_pole = get_or_create_inside_power_pole
 
 local function connect_power(factory, outside_power_pole)
