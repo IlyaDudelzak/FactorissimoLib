@@ -315,8 +315,8 @@ local function find_first_unused_position(surface)
     return #used_indexes + 1
 end
 
-local function create_factory_position(layout, building)
-    local surface_name = which_void_surface_should_this_new_factory_be_placed_on(layout, building)
+local function create_factory_position(layout, building, surface_nname)
+    local surface_name = surface_nname or which_void_surface_should_this_new_factory_be_placed_on(layout, building)
     local surface = game.get_surface(surface_name)
 
     -- 1. Подготовка поверхности
@@ -546,11 +546,11 @@ local function create_factory_interior(layout, building)
 end
 
 local function create_factory_doors(factory, building)
-    factorissimo.log("LOG: Start create_factory_doors for " .. building.name)
+    -- factorissimo.log("LOG: Start create_factory_doors for " .. building.name)
     
     local layout = factory.layout
     if not (layout and layout.door) then 
-        factorissimo.log("LOG: No layout or door found for factory")
+        -- factorissimo.log("LOG: No layout or door found for factory")
         return 
     end
 
@@ -591,7 +591,7 @@ local function create_factory_doors(factory, building)
             door.destructible = false
             storage.factories_by_entity[door.unit_number] = factory
             table.insert(factory.entrance_doors, door)
-            factorissimo.log("LOG: Door spawned: " .. door_entity_name)
+            -- factorissimo.log("LOG: Door spawned: " .. door_entity_name)
         else
             factorissimo.log("LOG: FAILED to create door: " .. door_entity_name)
         end
@@ -604,7 +604,9 @@ local function create_factory_exterior(factory, building)
     
     factory.outside_x = building.position.x
     factory.outside_y = building.position.y
-    
+
+    factory.outside_pos = {x = factory.outside_x, y = factory.outside_y}
+
     -- Используем координаты главной двери из layout (защита от nil)
     factory.outside_door_x = factory.outside_x + (layout.outside_door_x or 0)
     factory.outside_door_y = factory.outside_y + (layout.outside_door_y or 0)

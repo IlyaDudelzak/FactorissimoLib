@@ -56,23 +56,12 @@ if data then
             selection_box = {{-1.5, -1.5}, {1.5, 1.5}},
             
             crafting_categories = {"factory-conditioning"},
-            fixed_recipe = "factory-air-conditioning-process",
             crafting_speed = 1,
-            energy_usage = "250kW",
-
+            energy_usage = "5000kW",
             energy_source = {
-                type = "fluid",
-                fluid_box = {
-                    production_type = "input",
-                    pipe_covers = pipecoverspictures(),
-                    pipe_picture = require("__space-age__.prototypes.entity.electromagnetic-plant-pictures").pipe_pictures,
-                    volume = 100,
-                    pipe_connections = {
-                        {position = {0, -1.2}, direction = defines.direction.north},
-                    },
-                },
-                burns_fluid = false,
-                scale_fluid_usage = true,
+                type = "electric",
+                usage_priority = "secondary-input",
+                emissions_per_minute = { pollution = 50 }
             },
             -- ... (графика и звуки остаются без изменений) ...
             graphics_set = {
@@ -119,17 +108,15 @@ if data then
         }
     })
 
-    -- 4. Рецепт-процесс (чтобы кондиционер "работал")
     data:extend({
         {
-            type = "recipe",
-            name = "factory-air-conditioning-process",
-            enabled = true,
-            hidden = true, -- Скрыт из меню крафта игрока
-            energy_required = 1,
-            ingredients = {}, -- Ингредиенты не нужны, так как мы потребляем fluid через energy_source
-            results = {{type = "item", name = "factory-air-conditioner", amount = 0}}, -- Пустой результат
-            category = "factory-conditioning"
+            type = "item",
+            name = "fresh-air-in-factory",
+            icon = F .. "/graphics/icon/fresh-air-in-factory.png",
+            icon_size = 64,
+            subgroup = "factorissimo-parts",
+            stack_size = 10,
+            spoil_ticks = 1 
         }
     })
 

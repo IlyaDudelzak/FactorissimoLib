@@ -401,6 +401,26 @@ if data then
                 width = 1,
                 height = 1,
             }
+        },
+        air_conditioning_process = {
+
+            type = "recipe",
+            name = "factory-air-conditioning-process",
+            enabled = true,
+            hidden = true,
+            energy_required = 1,
+            ingredients = {},
+            results = {{type = "item", name = "fresh-air-in-factory", amount = 1}},
+            category = "factory-conditioning"
+        },
+        air_probe = {
+            type = "item",
+            name = "factory-air-probe",
+            icon = "__FactorissimoLib__/graphics/icon/factory-air-probe.png",
+            icon_size = 64,
+            subgroup = "factorissimo-parts",
+            order = "a[factory-air-probe]",
+            stack_size = 50
         }
     }
 

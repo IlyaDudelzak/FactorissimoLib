@@ -1,0 +1,6 @@
+local M = {}
+
+function M.transport_factory_to_surface(factory)
+end
+
+return M

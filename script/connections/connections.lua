@@ -1,12 +1,34 @@
+local get_factory_by_building = remote_api.get_factory_by_building
 local find_surrounding_factory = remote_api.find_surrounding_factory
+
 local type_map = {}
-local c_logic = {} -- Объединяем все таблицы классов в одну для удобства
+
+-- Not using metatables, for..... reasons
+local c_unlocked = {}
+local c_color = {}
+local c_connect = {}
+local c_recheck = {}
+local c_direction = {}
+local c_rotate = {}
+local c_adjust = {}
+local c_tick = {}
+local c_destroy = {}
 local connection_indicator_names = {}
 factorissimo.connection_indicator_names = connection_indicator_names
 
 local function register_connection_type(ctype, class)
-    for _, etype in pairs(class.entity_types) do type_map[etype] = ctype end
-    c_logic[ctype] = class
+    for _, etype in pairs(class.entity_types) do
+        type_map[etype] = ctype
+    end
+    c_unlocked[ctype] = class.unlocked
+    c_color[ctype] = class.color
+    c_connect[ctype] = class.connect
+    c_recheck[ctype] = class.recheck
+    c_direction[ctype] = class.direction
+    c_rotate[ctype] = class.rotate
+    c_adjust[ctype] = class.adjust
+    c_tick[ctype] = class.tick
+    c_destroy[ctype] = class.destroy
     for _, name in pairs(class.indicator_settings) do
         connection_indicator_names["factory-connection-indicator-" .. ctype .. "-" .. name] = ctype
     end
@@ -17,182 +39,37 @@ local function is_connectable(entity)
 end
 factorissimo.is_connectable = is_connectable
 
--- Data Structure
+-- Connection data structure --
+
 local CYCLIC_BUFFER_SIZE = 600
 factorissimo.on_event(factorissimo.events.on_init(), function()
     storage.connections = storage.connections or {}
     storage.delayed_connection_checks = storage.delayed_connection_checks or {}
-    for i = 0, CYCLIC_BUFFER_SIZE - 1 do storage.connections[i] = storage.connections[i] or {} end
+    for i = 0, CYCLIC_BUFFER_SIZE - 1 do
+        storage.connections[i] = storage.connections[i] or {}
+    end
 
+    -- https://github.com/notnotmelon/factorissimo-2-notnotmelon/issues/206
     for _, factory in pairs(storage.factories) do
         if factory.built then factorissimo.recheck_factory_connections(factory) end
     end
 end)
 
-local function add_to_queue(conn)
-    local pos = (math.floor(game.tick / CONNECTION_UPDATE_RATE) + 1) * CONNECTION_UPDATE_RATE % CYCLIC_BUFFER_SIZE
-    table.insert(storage.connections[pos], conn)
+local function add_connection_to_queue(conn)
+    local current_pos = (math.floor(game.tick / CONNECTION_UPDATE_RATE) + 1) * CONNECTION_UPDATE_RATE % CYCLIC_BUFFER_SIZE
+    table.insert(storage.connections[current_pos], conn)
 end
 
--- Indicators
-local function update_indicator(factory, cid, ctype, conn)
-    if factory.connection_indicators[cid] then factory.connection_indicators[cid].destroy() end
-    local setting, dir = c_logic[ctype].direction(conn)
-    local cpos = factory.layout.connections[cid]
-    factory.connection_indicators[cid] = factory.inside_surface.create_entity {
-        name = "factory-connection-indicator-" .. ctype .. "-" .. setting,
-        force = factory.force,
-        position = {factory.inside_x + cpos.inside_x + cpos.indicator_dx, factory.inside_y + cpos.inside_y + cpos.indicator_dy},
-        direction = dir,
-        quality = factory.quality
-    }
-end
+-- Connection settings --
 
--- Connection Management
-local function register_connection(factory, cid, ctype, conn, settings)
-    conn._id, conn._type, conn._factory, conn._settings, conn._valid = cid, ctype, factory, settings, true
-    factory.connections[cid] = conn
-    if conn.do_tick_update then add_to_queue(conn) end
-    update_indicator(factory, cid, ctype, conn)
-end
-
-function factorissimo.destroy_connection(conn)
-    if conn and conn._valid then
-        c_logic[conn._type].destroy(conn)
-        conn._valid = false
-        conn._factory.connections[conn._id] = nil
-        if conn._factory.connection_indicators[conn._id] then conn._factory.connection_indicators[conn._id].destroy() end
-    end
-end
-
-local function init_connection(factory, cid, cpos)
-    if factory.inactive or not (factory.outside_surface.valid and factory.inside_surface.valid) then return end
-
-    local function get_ents(surf, x, y) 
-        return surf.find_entities_filtered{position = {x, y}, force = factory.force} 
-    end
-
-    local outs = get_ents(factory.outside_surface, cpos.outside_x + factory.outside_x, cpos.outside_y + factory.outside_y)
-    local ins = get_ents(factory.inside_surface, cpos.inside_x + factory.inside_x, cpos.inside_y + factory.inside_y)
-
-    if #outs == 0 or #ins == 0 then return end
-
-    for _, out_e in pairs(outs) do
-        local ctype = type_map[out_e.type] or type_map[out_e.name]
-        if not ctype then goto skip_out end
-
-        for _, in_e in pairs(ins) do
-            if ctype == (type_map[in_e.type] or type_map[in_e.name]) then
-                if not c_logic[ctype].unlocked(factory.force) then
-                    factorissimo.create_flying_text{position = in_e.position, text = {"research-required"}}
-                    goto skip_in
-                end
-
-                local settings = factory.connection_settings[cid] or {}
-                factory.connection_settings[cid] = settings
-                settings[ctype] = settings[ctype] or {}
-                
-                local conn = c_logic[ctype].connect(factory, cid, cpos, out_e, in_e, settings[ctype])
-                if conn then
-                    local s = "entity-close/assembling-machine-3"
-                    factory.inside_surface.play_sound{path = s, position = in_e.position}
-                    register_connection(factory, cid, ctype, conn, settings[ctype])
-                    return
-                end
-            end
-            ::skip_in::
-        end
-        ::skip_out::
-    end
-end
-
--- Optimization: Simplified AABB
-local function aabb_collision(p, box, target)
-    return not (p.x + box.right_bottom.x < target.left_top.x or target.right_bottom.x < p.x + box.left_top.x or
-                p.y + box.right_bottom.y < target.left_top.y or target.right_bottom.y < p.y + box.left_top.y)
-end
-
-local function recheck_nearby_connections(entity, delayed)
-    local pos, surf, proto = entity.position, entity.surface, entity.prototype
-    local box = table.deepcopy(proto.collision_box)
-    local orient = entity.orientation or 0 -- Исправлено: берем ориентацию сущности
-
-    if orient == 0.5 then box.left_top.y, box.right_bottom.y = -box.right_bottom.y, -box.left_top.y
-    elseif orient == 0.25 or orient == 0.75 then
-        box.left_top.x, box.left_top.y, box.right_bottom.x, box.right_bottom.y = -box.right_bottom.y, -box.right_bottom.x, -box.left_top.y, -box.left_top.x
-    end
-
-    local area = {
-        left_top = {x = pos.x + math.floor(box.left_top.x) - 0.3, y = pos.y + math.floor(box.left_top.y) - 0.3},
-        right_bottom = {x = pos.x + math.ceil(box.right_bottom.x) + 0.3, y = pos.y + math.ceil(box.right_bottom.y) + 0.3}
-    }
-
-    for _, f in pairs(storage.factories) do
-        if f.built and f.outside_surface == surf and f.building.valid and aabb_collision(f.building.position, f.building.prototype.collision_box, area) then
-            if delayed then table.insert(storage.delayed_connection_checks, {factory = f, outside_area = area})
-            else factorissimo.recheck_factory_connections(f, area) end
-            break
-        end
-    end
-
-    local f_inside = find_surrounding_factory(surf, pos)
-    if f_inside then
-        if delayed then table.insert(storage.delayed_connection_checks, {factory = f_inside, inside_area = area})
-        else factorissimo.recheck_factory_connections(f_inside, nil, area) end
-    end
-end
-
--- Tick Handler
-CONNECTION_UPDATE_RATE = 5
-factorissimo.on_nth_tick(CONNECTION_UPDATE_RATE, function()
-    for _, check in pairs(storage.delayed_connection_checks) do
-        factorissimo.recheck_factory_connections(check.factory, check.outside_area, check.inside_area)
-    end
-    storage.delayed_connection_checks = {}
-
-    local pos = game.tick % CYCLIC_BUFFER_SIZE
-    local slot = storage.connections[pos]
-    storage.connections[pos] = {}
-    for _, conn in pairs(slot) do
-        if conn._valid then
-            local delay = c_logic[conn._type].tick(conn)
-            if delay then
-                local next_pos = (pos + delay) % CYCLIC_BUFFER_SIZE
-                table.insert(storage.connections[next_pos], conn)
-            else
-                factorissimo.destroy_connection(conn)
-                init_connection(conn._factory, conn._id, conn._factory.layout.connections[conn._id])
-            end
-        end
-    end
-end)
-
--- Events & Types Registry
-register_connection_type("belt", require("belt"))
-register_connection_type("chest", require("chest"))
-register_connection_type("fluid", require("fluid"))
-register_connection_type("circuit", require("circuit"))
-register_connection_type("heat", require("heat"))
-
--- Define missing global variables for connection logic
-c_unlocked = c_unlocked or {}
-c_color = c_color or {}
-c_connect = c_connect or {}
-c_recheck = c_recheck or {}
-c_direction = c_direction or {}
-c_rotate = c_rotate or {}
-c_adjust = c_adjust or {}
-c_tick = c_tick or {}
-c_destroy = c_destroy or {}
-
--- Add missing functions and definitions
-
-local get_connection_settings = function(factory, cid, ctype)
+local function get_connection_settings(factory, cid, ctype)
     factory.connection_settings[cid] = factory.connection_settings[cid] or {}
     factory.connection_settings[cid][ctype] = factory.connection_settings[cid][ctype] or {}
     return factory.connection_settings[cid][ctype]
 end
 factorissimo.get_connection_settings = get_connection_settings
+
+-- Connection indicators --
 
 local function set_connection_indicator(factory, cid, ctype, setting, dir)
     local old_indicator = factory.connection_indicators[cid]
@@ -215,6 +92,8 @@ local function delete_connection_indicator(factory, cid, ctype)
     if old_indicator and old_indicator.valid then old_indicator.destroy() end
 end
 
+-- Connection changes --
+
 local function register_connection(factory, cid, ctype, conn, settings)
     conn._id = cid
     conn._type = ctype
@@ -222,12 +101,12 @@ local function register_connection(factory, cid, ctype, conn, settings)
     conn._settings = settings
     conn._valid = true
     factory.connections[cid] = conn
-    if conn.do_tick_update then add_to_queue(conn) end
+    if conn.do_tick_update then add_connection_to_queue(conn) end
     local setting, dir = c_direction[ctype](conn)
     set_connection_indicator(factory, cid, ctype, setting, dir)
 end
 
-local function init_connection(factory, cid, cpos)
+local function init_connection(factory, cid, cpos) -- Only call this when factory.connections[cid] == nil!
     if factory.inactive then return end
     if not factory.outside_surface.valid then return end
     if not factory.inside_surface.valid then return end
@@ -279,44 +158,311 @@ factorissimo.init_connection = init_connection
 local function destroy_connection(conn)
     if conn and conn._valid then
         c_destroy[conn._type](conn)
-        conn._valid = false
-        conn._factory.connections[conn._id] = nil
+        conn._valid = false                       -- _valid should be true iff conn._factory.connections[conn._id] == conn
+        conn._factory.connections[conn._id] = nil -- Lua can handle this
         delete_connection_indicator(conn._factory, conn._id, conn._type)
     end
 end
 factorissimo.destroy_connection = destroy_connection
 
-local function recheck_factory_connections(factory, outside_area, inside_area)
-    if not factory.built then return end
-    local connections = factory.connections
-    for _, cpos in ipairs(factory.layout.connections) do
-        local cid = cpos.id
+local function in_area(x, y, area)
+    return x >= area.left_top.x and x <= area.right_bottom.x and y >= area.left_top.y and y <= area.right_bottom.y
+end
+
+local function recheck_factory_connections(factory, outside_area, inside_area) -- Areas are optional
+    factorissimo.log("Rechecking factory connections for factory: ", factory.name, " at position ", factory.outside_pos)
+    if not factory.built then 
+        factorissimo.log("Factory is not built, skipping recheck.")
+        return 
+    end
+    factory.connections = factory.connections or {}
+    for cid, cpos in pairs(factory.layout.connections) do
+        -- factorissimo.log("Checking connection ID: ", cid)
         if outside_area and not in_area(cpos.outside_x + factory.outside_x, cpos.outside_y + factory.outside_y, outside_area) then
-            goto continue
+            goto continue 
         end
         if inside_area and not in_area(cpos.inside_x + factory.inside_x, cpos.inside_y + factory.inside_y, inside_area) then
-            goto continue
+            goto continue 
         end
-        local conn = connections[cid]
+
+        local conn = factory.connections[cid]
         if conn then
-            if c_logic[conn._type].recheck(conn) then
-                -- Connection is valid, no action needed
+            factorissimo.log("Connection ID ", cid, " exists. Rechecking...")
+            if c_recheck[conn._type](conn) then
+                factorissimo.log("Connection ID ", cid, " is valid.")
+                -- Everything is fine
             else
-                factorissimo.destroy_connection(conn)
+                factorissimo.log("Connection ID ", cid, " is invalid. Destroying and reinitializing.")
+                destroy_connection(conn)
                 init_connection(factory, cid, cpos)
             end
         else
+            factorissimo.log("Connection ID ", cid, " does not exist. Initializing connection.")
             init_connection(factory, cid, cpos)
         end
 
         ::continue::
     end
+    factorissimo.log("Finished rechecking factory connections for factory: ", factory.name, " at position ", factory.outside_pos)
 end
-
 factorissimo.recheck_factory_connections = recheck_factory_connections
 
-local function in_area(x, y, area)
-    return x >= area.left_top.x and x <= area.right_bottom.x and y >= area.left_top.y and y <= area.right_bottom.y
+factorissimo.on_event({defines.events.on_research_finished, defines.events.on_research_reversed}, function(event)
+    if not storage.factories then return end -- In case any mod or scenario script calls LuaForce.research_all_technologies() during its on_init
+    if event.research.name:find("factory%-connection%-type%-") then
+        for _, factory in pairs(storage.factories) do
+            if factory.built then recheck_factory_connections(factory) end
+        end
+    end
+end)
+
+-- During deconstruction events of an entity that is part of a connection, the entity is still valid and built, so recheck_factory_connections would not destroy the connection involved.
+-- Delaying the recheck causes these connections to be properly deconstructed immediately, instead of having to wait until the connection ticks again.
+local function recheck_factory_connections_delayed(factory, outside_area, inside_area)
+    storage.delayed_connection_checks[1 + #(storage.delayed_connection_checks)] = {
+        factory = factory,
+        outside_area = outside_area,
+        inside_area = inside_area
+    }
 end
+
+function factorissimo.disconnect_factory_connections(factory)
+    for cid, conn in pairs(factory.connections) do
+        destroy_connection(conn)
+    end
+end
+
+local function aabb_collision(box1_shift, box1, box2)
+    local x_shift, y_shift = box1_shift.x, box1_shift.y
+    return not (
+        x_shift + box1.right_bottom.x < box2.left_top.x or -- box1 is to the left of box2
+        box2.right_bottom.x < x_shift + box1.left_top.x or -- box2 is to the left of box1
+        y_shift + box1.right_bottom.y < box2.left_top.y or -- box1 is above box2
+        box2.right_bottom.y < y_shift + box1.left_top.y    -- box2 is above box1
+    )
+end
+
+-- When a connection piece is placed or destroyed, check if can be connected to a factory building
+local function recheck_nearby_connections(entity, delayed)
+    local surface = entity.surface
+    local pos = entity.position
+
+    factorissimo.log("Rechecking nearby connections for entity at position: ", pos)
+
+    local collision_box = entity.prototype.collision_box
+    local orientation = entity.orientation or 0
+    -- factorissimo.log("Initial collision box: ", collision_box, " Orientation: ", orientation)
+
+    if orientation == 0 then        -- north
+        factorissimo.log("Orientation is north")
+        -- collision_box is fine
+    elseif orientation == 0.5 then  -- south
+        factorissimo.log("Orientation is south")
+        collision_box.left_top.y, collision_box.right_bottom.y = -collision_box.right_bottom.y, -collision_box.left_top.y
+    elseif orientation == 0.25 then -- east
+        factorissimo.log("Orientation is east")
+        collision_box.left_top.y, collision_box.left_top.x, collision_box.right_bottom.x, collision_box.right_bottom.y = -collision_box.right_bottom.x, -collision_box.right_bottom.y, -collision_box.left_top.y, -collision_box.left_top.x
+    elseif orientation == 0.75 then -- west
+        factorissimo.log("Orientation is west")
+        collision_box.left_top.y, collision_box.right_bottom.y = -collision_box.right_bottom.y, -collision_box.left_top.y
+        collision_box.left_top.y, collision_box.left_top.x, collision_box.right_bottom.x, collision_box.right_bottom.y = -collision_box.right_bottom.x, -collision_box.right_bottom.y, -collision_box.left_top.y, -collision_box.left_top.x
+    end
+
+    -- factorissimo.log("Adjusted collision box: ", collision_box)
+
+    -- Expand collision box to grid-aligned
+    collision_box.left_top.x = math.floor(collision_box.left_top.x)
+    collision_box.left_top.y = math.floor(collision_box.left_top.y)
+    collision_box.right_bottom.x = math.ceil(collision_box.right_bottom.x)
+    collision_box.right_bottom.y = math.ceil(collision_box.right_bottom.y)
+
+    -- factorissimo.log("Grid-aligned collision box: ", collision_box)
+
+    -- Expand box to catch factories and also avoid illegal zero-area finds
+    local bounding_box = {
+        left_top = {x = pos.x - 0.3 + collision_box.left_top.x, y = pos.y - 0.3 + collision_box.left_top.y},
+        right_bottom = {x = pos.x + 0.3 + collision_box.right_bottom.x, y = pos.y + 0.3 + collision_box.right_bottom.y}
+    }
+
+    -- factorissimo.log("Bounding box for recheck: ", bounding_box)
+
+    for _, factory in pairs(storage.factories) do
+        local building = factory.building
+        if factory.built and factory.outside_surface == surface and building.valid and aabb_collision(building.position, building.prototype.collision_box, bounding_box) then
+            factorissimo.log("Factory found in bounding box: ", factory.name, " at position ", building.position)
+            if delayed then
+                factorissimo.log("Rechecking factory connections (delayed)")
+                recheck_factory_connections_delayed(factory, bounding_box, nil)
+            else
+                factorissimo.log("Rechecking factory connections (immediate)")
+                recheck_factory_connections(factory, bounding_box, nil)
+            end
+            break
+        end
+    end
+
+    local factory = find_surrounding_factory(surface, pos)
+    if factory then
+        factorissimo.log("Surrounding factory found: ", factory.name, " at position ", factory.inside_pos)
+        if delayed then
+            factorissimo.log("Rechecking surrounding factory connections (delayed)")
+            recheck_factory_connections_delayed(factory, nil, bounding_box)
+        else
+            factorissimo.log("Rechecking surrounding factory connections (immediate)")
+            recheck_factory_connections(factory, nil, bounding_box)
+        end
+    else
+        factorissimo.log("No surrounding factory found")
+    end
+end
+
+factorissimo.on_event(factorissimo.events.on_destroyed(), function(event)
+    local entity = event.entity
+    if entity.valid and is_connectable(entity) then
+        recheck_nearby_connections(entity, true) -- Delay
+    end
+end)
+
+factorissimo.on_event(factorissimo.events.on_built(), function(event)
+    local entity = event.entity
+    if not entity.valid or not is_connectable(entity) then return end
+    local entity_name = entity.name
+
+    factorissimo.log("built connection piece ", entity_name)
+
+    if entity_name == "factory-circuit-connector" then
+        entity.operable = false
+    else
+        local _, _, pipe_name_input = entity_name:find("^factory%-(.*)%-input$")
+        local _, _, pipe_name_output = entity_name:find("^factory%-(.*)%-output$")
+        local pipe_name = pipe_name_input or pipe_name_output
+        if pipe_name then entity = remote_api.replace_entity(entity, pipe_name) end
+    end
+
+    recheck_nearby_connections(entity)
+end)
+
+-- Connection effects --
+
+CONNECTION_UPDATE_RATE = 5
+factorissimo.on_nth_tick(CONNECTION_UPDATE_RATE, function()
+    -- First let's run all them delayed connection checks
+    for _, check in pairs(storage.delayed_connection_checks) do
+        recheck_factory_connections(check.factory, check.outside_area, check.inside_area)
+    end
+    storage.delayed_connection_checks = {}
+
+    local current_pos = game.tick % CYCLIC_BUFFER_SIZE
+    local connections = storage.connections
+    local current_slot = connections[current_pos]
+    connections[current_pos] = {}
+    for _, conn in pairs(current_slot) do
+        local delay = conn._valid and c_tick[conn._type](conn)
+        if delay then
+            -- Reinsert connection after delay
+            -- Not checking for inappropriate delays, so keep your delays civil
+            local queue_pos = (current_pos + delay) % CYCLIC_BUFFER_SIZE
+            local new_slot = connections[queue_pos]
+            new_slot[1 + #new_slot] = conn
+        elseif conn._valid then
+            destroy_connection(conn)
+            init_connection(conn._factory, conn._id, conn._factory.layout.connections[conn._id])
+        end
+    end
+end)
+
+local function rotate(factory, indicator)
+    for cid, ind2 in pairs(factory.connection_indicators) do
+        if ind2 and ind2.valid then
+            if (ind2.unit_number == indicator.unit_number) then
+                local conn = factory.connections[cid]
+                local text, noop = c_rotate[conn._type](conn)
+                factorissimo.create_flying_text {position = indicator.position, color = c_color[conn._type], text = text}
+                if noop then return end
+                local setting, dir = c_direction[conn._type](conn)
+                set_connection_indicator(factory, cid, conn._type, setting, dir)
+                return
+            end
+        end
+    end
+end
+
+factorissimo.on_event("factory-rotate", function(event)
+    local player = game.get_player(event.player_index)
+    local indicator = player.selected
+    if not indicator or not factorissimo.connection_indicator_names[indicator.name] then return end
+    local factory = find_surrounding_factory(indicator.surface, indicator.position)
+    if not factory then return end
+    rotate(factory, indicator)
+end)
+
+local function adjust(factory, indicator, positive)
+    for cid, ind2 in pairs(factory.connection_indicators) do
+        if ind2 and ind2.valid then
+            if (ind2.unit_number == indicator.unit_number) then
+                local conn = factory.connections[cid]
+                local text, noop = c_adjust[conn._type](conn, positive)
+                factorissimo.create_flying_text {position = indicator.position, color = c_color[conn._type], text = text}
+                if noop then return end
+                local setting, dir = c_direction[conn._type](conn)
+                set_connection_indicator(factory, cid, conn._type, setting, dir)
+                return
+            end
+        end
+    end
+end
+
+local beeps = {"Beep", "Boop", "Beep", "Boop", "Beeple"}
+factorissimo.beep = function()
+    local t = game.tick
+    return beeps[t % 5 + 1], true
+end
+
+register_connection_type("belt", require("belt"))
+register_connection_type("chest", require("chest"))
+register_connection_type("fluid", require("fluid"))
+register_connection_type("circuit", require("circuit"))
+register_connection_type("heat", require("heat"))
+
+factorissimo.on_event(defines.events.on_player_flipped_entity, function(event)
+    local entity = event.entity
+    if not factorissimo.connection_indicator_names[entity.name] then return end
+    entity.mirroring = false
+    local factory = remote_api.find_surrounding_factory(entity.surface, entity.position)
+    rotate(factory, entity)
+end)
+
+factorissimo.on_event(defines.events.on_player_rotated_entity, function(event)
+    local entity = event.entity
+    if factorissimo.connection_indicator_names[entity.name] then
+        entity.direction = event.previous_direction
+    elseif is_connectable(entity) then
+        recheck_nearby_connections(entity)
+        if entity.valid and entity.type == "underground-belt" then
+            local neighbour = entity.neighbours
+            if neighbour then
+                recheck_nearby_connections(neighbour)
+            end
+        end
+    end
+end)
+
+factorissimo.on_event("factory-increase", function(event)
+    local entity = game.get_player(event.player_index).selected
+    if not entity then return end
+    if factorissimo.connection_indicator_names[entity.name] then
+        local factory = find_surrounding_factory(entity.surface, entity.position)
+        if factory then adjust(factory, entity, true) end
+    end
+end)
+
+factorissimo.on_event("factory-decrease", function(event)
+    local entity = game.get_player(event.player_index).selected
+    if not entity then return end
+    if factorissimo.connection_indicator_names[entity.name] then
+        local factory = find_surrounding_factory(entity.surface, entity.position)
+        if factory then adjust(factory, entity, false) end
+    end
+end)
 
 require "port-markers"

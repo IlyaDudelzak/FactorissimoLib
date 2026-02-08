@@ -162,6 +162,8 @@ for _, planet in pairs(data.raw.planet) do
     update_surface_render_parameters(planet, factory_floor)
     add_music(planet, factory_floor)
 
+    table.insert(factory_floors, create_conditioning_process(planet.name))
+
     if planet.name == "nauvis" then
         factory_floor.hidden = false
         factory_floor.starmap_icon = "__base__/graphics/icons/starmap-planet-nauvis.png"
